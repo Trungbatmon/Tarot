@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="Ứng dụng Tarot, Oracle & Lenormand — Quản lý bộ bài, trải bài, và tra cứu ý nghĩa lá bài với AI hỗ trợ.">
+    <meta name="theme-color" content="#0a0a1a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Tarot">
+
+    <title>🔮 Tarot — Mystic Card Reader</title>
+
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icons/icon-192.png" type="image/png">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- ==========================================
+         Starfield Background
+         ========================================== -->
+    <div id="starfield" class="starfield" aria-hidden="true">
+        <div class="star star-1"></div>
+        <div class="star star-2"></div>
+        <div class="star star-3"></div>
+        <div class="star star-4"></div>
+        <div class="star star-5"></div>
+    </div>
+
+    <!-- ==========================================
+         App Header
+         ========================================== -->
+    <header id="appHeader" class="app-header">
+        <div class="header-content">
+            <h1 class="app-title">
+                <span class="title-icon">🔮</span>
+                <span class="title-text">Tarot</span>
+            </h1>
+            <div class="header-actions">
+                <span id="syncStatusIndicator" class="sync-status" title="Trạng thái kết nối">
+                    <span class="sync-dot offline"></span>
+                    <span class="sync-label">Offline</span>
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <!-- ==========================================
+         Main Content Area
+         ========================================== -->
+    <main id="appContent" class="app-content">
+        <!-- Decks Section -->
+        <section id="viewDecks" class="view-section active" data-view="decks">
+            <!-- Rendered by DeckManager.render() -->
+        </section>
+
+        <!-- Draw Section -->
+        <section id="viewDraw" class="view-section" data-view="draw">
+            <!-- Rendered by CardReader.render() -->
+        </section>
+
+        <!-- Spreads Section -->
+        <section id="viewSpreads" class="view-section" data-view="spreads">
+            <!-- Rendered by SpreadBuilder.render() -->
+        </section>
+
+        <!-- History Section -->
+        <section id="viewHistory" class="view-section" data-view="history">
+            <!-- Rendered by ReadingHistory.render() -->
+        </section>
+
+        <!-- Settings Section -->
+        <section id="viewSettings" class="view-section" data-view="settings">
+            <!-- Rendered by Settings.render() -->
+        </section>
+    </main>
+
+    <!-- ==========================================
+         Bottom Navigation
+         ========================================== -->
+    <nav id="bottomNav" class="bottom-nav" aria-label="Điều hướng chính">
+        <button id="navDecks" class="nav-tab active" data-view="decks" title="Bộ bài">
+            <span class="nav-icon">🃏</span>
+            <span class="nav-label">Decks</span>
+        </button>
+        <button id="navDraw" class="nav-tab" data-view="draw" title="Rút bài">
+            <span class="nav-icon">🔮</span>
+            <span class="nav-label">Draw</span>
+        </button>
+        <button id="navSpreads" class="nav-tab" data-view="spreads" title="Trải bài">
+            <span class="nav-icon">📐</span>
+            <span class="nav-label">Spreads</span>
+        </button>
+        <button id="navHistory" class="nav-tab" data-view="history" title="Nhật ký">
+            <span class="nav-icon">📖</span>
+            <span class="nav-label">History</span>
+        </button>
+        <button id="navSettings" class="nav-tab" data-view="settings" title="Cài đặt">
+            <span class="nav-icon">⚙️</span>
+            <span class="nav-label">Settings</span>
+        </button>
+    </nav>
+
+    <!-- ==========================================
+         Modal Container
+         ========================================== -->
+    <div id="modalOverlay" class="modal-overlay" aria-hidden="true">
+        <div id="modalContainer" class="modal-container">
+            <div class="modal-header">
+                <h2 id="modalTitle" class="modal-title"></h2>
+                <button id="modalClose" class="modal-close" title="Đóng" aria-label="Đóng modal">&times;</button>
+            </div>
+            <div id="modalBody" class="modal-body"></div>
+            <div id="modalFooter" class="modal-footer"></div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         Toast Container
+         ========================================== -->
+    <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+    <!-- ==========================================
+         Loading Overlay
+         ========================================== -->
+    <div id="loadingOverlay" class="loading-overlay" aria-hidden="true">
+        <div class="loading-spinner">
+            <div class="spinner-ring"></div>
+            <div class="spinner-ring"></div>
+            <div class="spinner-ring"></div>
+            <span class="spinner-icon">✦</span>
+        </div>
+        <p id="loadingText" class="loading-text">Đang tải...</p>
+    </div>
+
+    <!-- ==========================================
+         Scripts — Load Order Matters!
+         ai-service → feature modules → app.js (last)
+         ========================================== -->
+    <!-- Phase 3: AI Service -->
+    <script src="modules/ai-service.js"></script>
+
+    <!-- Phase 3: Settings -->
+    <script src="modules/settings.js"></script>
+
+    <!-- Phase 4: Deck Manager -->
+    <script src="modules/deck-manager.js"></script>
+
+    <!-- Phase 5: Card Scanner -->
+    <script src="modules/card-scanner.js"></script>
+
+    <!-- Phase 6: Companion Importer -->
+    <script src="modules/companion-importer.js"></script>
+
+    <!-- Phase 7-9: Card Reader -->
+    <script src="modules/card-reader.js"></script>
+
+    <!-- Phase 8: Spread Builder -->
+    <script src="modules/spread-builder.js"></script>
+
+    <!-- Phase 9: Reading History -->
+    <script src="modules/reading-history.js"></script>
+
+    <!-- Phase 11: Cloud Sync -->
+    <script src="modules/cloud-sync.js"></script>
+
+    <!-- Core App (ALWAYS LAST) -->
+    <script src="app.js"></script>
+</body>
+</html>
