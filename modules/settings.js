@@ -32,22 +32,37 @@ const Settings = {
                         <span class="icon">🔑</span> ${App.t('settings.apiKeys')}
                     </h3>
                     
-                    <div class="form-group">
-                        <label class="form-label" for="geminiApiKey">Google Gemini API Key (Primary AI)</label>
-                        <div class="flex gap-sm">
-                            <input type="password" id="geminiApiKey" class="form-input" 
-                                value="${settings.geminiApiKey || ''}" placeholder="AIzaSy...">
-                            <button class="btn btn-secondary btn-icon" id="btnTestGemini" title="Test Connection">✨</button>
+                    <div class="form-group mb-xl">
+                        <label class="form-label text-warning" style="font-size: 1.1em;">🪐 Google Gemini (API Mặc định)</label>
+                        <p class="text-sm text-muted mb-md">Gemini chịu trách nhiệm làm Tác vụ Cốt lõi: Dịch nghĩa lá bài tự động, Gợi ý danh sách, Đọc sách Companion Book, Giải mã Tarot Readings.</p>
+                        
+                        <div class="mb-sm">
+                            <label class="form-label text-xs" for="geminiModel">Phiên bản Model Model (Nên để nguyên)</label>
+                            <input type="text" id="geminiModel" class="form-input mb-md" style="font-family: monospace;"
+                                value="${settings.geminiModel || 'gemini-1.5-flash'}" placeholder="gemini-1.5-flash">
                         </div>
-                        <small class="text-muted text-xs mt-sm">Used for OCR, translation, card details (Free Tier)</small>
+
+                        <label class="form-label text-xs" for="geminiApiKey">Nhập Google Gemini API Key</label>
+                        <input type="password" id="geminiApiKey" class="form-input mb-md" 
+                            value="${settings.geminiApiKey || ''}" placeholder="AIzaSy...">
+                            
+                        <div class="flex gap-sm">
+                            <button class="btn btn-secondary flex-1" id="btnTestGemini">✨ Kiểm tra kết nối</button>
+                        </div>
                     </div>
 
-                    <div class="form-group">
-                        <label class="form-label" for="openaiApiKey">OpenAI API Key (Fallback AI)</label>
+                    <div class="divider mb-xl"></div>
+
+                    <div class="form-group mb-xl">
+                        <label class="form-label text-info" style="font-size: 1.1em;">🤖 OpenAI / ChatGPT (Dự phòng)</label>
+                        <p class="text-sm text-muted mb-md">Dùng làm AI thay thế nếu Google Gemini bị lỗi hoặc bạn muốn GPT-4 giải bài chi tiết hơn.</p>
+                        
+                        <label class="form-label text-xs" for="openaiApiKey">Nhập OpenAI API Key</label>
+                        <input type="password" id="openaiApiKey" class="form-input mb-md" 
+                            value="${settings.openaiApiKey || ''}" placeholder="sk-...">
+                            
                         <div class="flex gap-sm">
-                            <input type="password" id="openaiApiKey" class="form-input" 
-                                value="${settings.openaiApiKey || ''}" placeholder="sk-...">
-                            <button class="btn btn-secondary btn-icon" id="btnTestOpenAI" title="Test Connection">🤖</button>
+                            <button class="btn btn-secondary flex-1" id="btnTestOpenAI">🤖 Kiểm tra OpenAI</button>
                         </div>
                     </div>
 
@@ -212,6 +227,7 @@ const Settings = {
         };
 
         bindInput('geminiApiKey', 'geminiApiKey');
+        bindInput('geminiModel', 'geminiModel');
         bindInput('openaiApiKey', 'openaiApiKey');
         bindInput('cloudinaryName', 'cloudinaryCloudName');
         bindInput('cloudinaryPreset', 'cloudinaryUploadPreset');

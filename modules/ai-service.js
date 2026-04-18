@@ -76,7 +76,8 @@ Raw Text Block:
      */
     async testGemini() {
         if (!this.isGeminiAvailable()) throw new Error("Chưa có API Key Gemini");
-        const response = await this._callGemini("Respond only with the word 'OK'", 'gemini-1.5-flash');
+        const targetModel = App.settings.geminiModel || 'gemini-1.5-flash';
+        const response = await this._callGemini("Respond only with the word 'OK'", targetModel);
         if (!response || !response.toLowerCase().includes('ok')) throw new Error("Phản hồi lỗi.");
         return true;
     },
@@ -266,16 +267,12 @@ Raw Text Block:
     },
 
     /**
-     * Call Google Gemini API
-     * @param {string} prompt 
-     * @param {string} model 
-     * @returns {Promise<string>}
-     */
-    async _callGemini(prompt, model = 'gemini-1.5-flash') {
+    async _callGemini(prompt, fallbackModel = 'gemini-1.5-flash') {
         const apiKey = App.settings.geminiApiKey;
         if (!apiKey) throw new Error("Missing Gemini API Key");
 
-        const url = `${this.GEMINI_API_URL}/${model}:generateContent?key=${apiKey}`;
+        const targetModel = App.settings.geminiModel || fallbackModel;
+        const url = `${this.GEMINI_API_URL}/${targetModel}:generateContent?key=${apiKey}`;
         
         const payload = {
             contents: [{
