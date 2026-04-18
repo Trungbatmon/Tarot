@@ -126,24 +126,25 @@
 html {
     font-size: 16px;
     -webkit-text-size-adjust: 100%;
-    scroll-behavior: smooth;
-    overflow: hidden;
-    position: fixed;
     width: 100%;
     height: 100%;
+    -webkit-tap-highlight-color: transparent;
 }
 
 body {
+    -webkit-user-select: none;
+    user-select: none;
     font-family: var(--font-ui);
     font-size: var(--text-base);
     color: var(--text-primary);
-    background: var(--bg-primary);
-    background: linear-gradient(165deg, var(--bg-primary) 0%, var(--bg-secondary) 50%, var(--bg-tertiary) 100%);
-    min-height: 100%;
+    background-color: var(--bg-primary);
+    background-image: linear-gradient(165deg, var(--bg-primary) 0%, var(--bg-secondary) 50%, var(--bg-tertiary) 100%);
+    background-attachment: fixed;
     width: 100%;
+    height: 100%;
     overflow: hidden;
-    position: fixed;
-    inset: 0;
+    margin: 0;
+    padding: 0;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     line-height: 1.6;
@@ -343,7 +344,7 @@ input, textarea, select {
    Main Content Area
    ========================================== */
 .app-content {
-    position: absolute; /* Using absolute inside fixed body solves iOS Safari hitbox detachment */
+    position: fixed;
     top: var(--header-height);
     left: 0;
     right: 0;
@@ -796,6 +797,8 @@ input, textarea, select {
     color: var(--text-primary);
     font-size: var(--text-base);
     transition: all var(--transition-base);
+    -webkit-user-select: auto !important;
+    user-select: auto !important;
 }
 
 .form-input:focus,
