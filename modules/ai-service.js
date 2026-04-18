@@ -267,6 +267,11 @@ Raw Text Block:
     },
 
     /**
+     * Call Google Gemini API
+     * @param {string} prompt
+     * @param {string} fallbackModel
+     * @returns {Promise<string>}
+     */
     async _callGemini(prompt, fallbackModel = 'gemini-1.5-flash') {
         const apiKey = App.settings.geminiApiKey;
         if (!apiKey) throw new Error("Missing Gemini API Key");
