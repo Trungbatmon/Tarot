@@ -50,7 +50,16 @@ const CloudSync = {
             return Toast.error("Vui lòng nhập Dropbox App Key trước.");
         }
 
-        const redirectUri = window.location.origin + window.location.pathname;
+        // Normalize path to prevent index.html mismatch in PWA
+        let currentPath = window.location.pathname;
+        if (currentPath.endsWith('/index.html')) {
+            currentPath = currentPath.substring(0, currentPath.length - 'index.html'.length);
+        }
+        if (!currentPath.endsWith('/')) {
+            currentPath += '/';
+        }
+
+        const redirectUri = window.location.origin + currentPath;
         const authUrl = `${this.AUTH_URL}?client_id=${appKey}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}`;
         
         // Redirect
