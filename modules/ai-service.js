@@ -60,11 +60,50 @@ Raw Text Block:
 {rawText}`
     },
 
-    /**
-     * Check if Gemini is configured
-     */
     isGeminiAvailable() {
         return !!App.settings.geminiApiKey;
+    },
+
+    /**
+     * Check if OpenAI is configured
+     */
+    isOpenAIAvailable() {
+        return !!App.settings.openaiApiKey;
+    },
+
+    /**
+     * Test Gemini Connection
+     */
+    async testGemini() {
+        if (!this.isGeminiAvailable()) throw new Error("Chưa có API Key Gemini");
+        const response = await this._callGemini("Respond only with the word 'OK'", 'gemini-1.5-flash');
+        if (!response || !response.toLowerCase().includes('ok')) throw new Error("Phản hồi lỗi.");
+        return true;
+    },
+
+    /**
+     * Test OpenAI Connection
+     */
+    async testOpenAI() {
+        if (!this.isOpenAIAvailable()) throw new Error("Chưa có API Key OpenAI");
+        const response = await fetch(this.OPENAI_API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${App.settings.openaiApiKey}`
+            },
+            body: JSON.stringify({
+                model: 'gpt-4o-mini',
+                messages: [{ role: 'user', content: 'Respond only with OK' }],
+                max_tokens: 5
+            })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error?.message || `HTTP Error ${response.status}`);
+        }
+        return true;
     },
 
     /**

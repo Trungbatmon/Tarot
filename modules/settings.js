@@ -196,20 +196,19 @@ const Settings = {
      * Attach all DOM events for the settings view
      */
     _attachEvents() {
-        // --- API Keys (Auto-save on debounce) ---
+        // --- API Keys (Auto-save instantly) ---
         const bindInput = (id, keyName) => {
             const input = document.getElementById(id);
             if (!input) return;
             
-            let timeout = null;
-            input.addEventListener('input', () => {
-                clearTimeout(timeout);
-                timeout = setTimeout(async () => {
-                    const val = input.value.trim();
-                    App.settings[keyName] = val;
-                    await Store.setSetting(keyName, val);
-                }, DEBOUNCE_SAVE_MS);
-            });
+            const saveHandler = async () => {
+                const val = input.value.trim();
+                App.settings[keyName] = val;
+                await Store.setSetting(keyName, val);
+            };
+
+            input.addEventListener('input', saveHandler);
+            input.addEventListener('change', saveHandler);
         };
 
         bindInput('geminiApiKey', 'geminiApiKey');
@@ -291,15 +290,30 @@ const Settings = {
             if (typeof CloudSync !== 'undefined') CloudSync.restoreFromDropbox();
         });
 
-        document.getElementById('btnTestGemini')?.addEventListener('click', () => {
-            if (!App.settings.geminiApiKey) return Toast.warning("Please enter API Key first.");
-            Toast.info("Testing Gemini Connection...");
-            // TODO: Call AIService.testConnection() once module is built
+        document.getElementById('btnTestGemini')?.addEventListener('click', async () => {
+            if (!App.settings.geminiApiKey) return Toast.warning("Vui lòng nhập API Key trước.");
+            try {
+                Loading.show("Đang kiểm tra kết nối Gemini...");
+                await AIService.testGemini();
+                Toast.success("Kết nối Gemini thành công! API Key hợp lệ.");
+            } catch (err) {
+                Toast.error("Lỗi Google Gemini: " + err.message);
+            } finally {
+                Loading.hide();
+            }
         });
 
-        document.getElementById('btnTestOpenAI')?.addEventListener('click', () => {
-            if (!App.settings.openaiApiKey) return Toast.warning("Please enter API Key first.");
-            Toast.info("Testing OpenAI Connection...");
+        document.getElementById('btnTestOpenAI')?.addEventListener('click', async () => {
+            if (!App.settings.openaiApiKey) return Toast.warning("Vui lòng nhập API Key trước.");
+            try {
+                Loading.show("Đang kiểm tra kết nối OpenAI...");
+                await AIService.testOpenAI();
+                Toast.success("Kết nối OpenAI thành công! API Key hợp lệ.");
+            } catch (err) {
+                Toast.error("Lỗi OpenAI: " + err.message);
+            } finally {
+                Loading.hide();
+            }
         });
 
         document.getElementById('btnExport')?.addEventListener('click', async () => {
