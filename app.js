@@ -422,7 +422,7 @@ const Store = {
         const data = {};
         const storeNames = [
             STORES.DECKS, STORES.CARDS, STORES.SPREADS,
-            STORES.READINGS, STORES.COMPANIONS
+            STORES.READINGS, STORES.COMPANIONS, STORES.SETTINGS
         ];
 
         for (const storeName of storeNames) {
@@ -451,7 +451,7 @@ const Store = {
     async importAll(data) {
         const storeNames = [
             STORES.DECKS, STORES.CARDS, STORES.SPREADS,
-            STORES.READINGS, STORES.COMPANIONS
+            STORES.READINGS, STORES.COMPANIONS, STORES.SETTINGS
         ];
 
         for (const storeName of storeNames) {
