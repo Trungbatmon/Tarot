@@ -71,19 +71,21 @@ const Settings = {
                         </div>
                     </div>
 
-                    <div class="form-group mt-lg">
-                        <label class="form-label">Cloudinary (Image Processing)</label>
-                        <div class="grid-2 gap-sm">
-                            <div>
-                                <input type="text" id="cloudinaryName" class="form-input" 
-                                    value="${settings.cloudinaryCloudName || ''}" placeholder="Cloud Name (e.g. dzq...)">
-                            </div>
-                            <div>
-                                <input type="text" id="cloudinaryPreset" class="form-input" 
-                                    value="${settings.cloudinaryUploadPreset || ''}" placeholder="Upload Preset">
-                            </div>
-                        </div>
-                        <small class="text-muted text-xs mt-sm">Required for auto-cropping and image enhancement.</small>
+                    <div class="divider mb-xl"></div>
+
+                    <div class="form-group mb-xl">
+                        <label class="form-label" style="font-size: 1.1em;">☁️ Cloudinary (Xử lý hình ảnh)</label>
+                        <p class="text-sm text-muted mb-md">Dùng để tự động crop, làm nét ảnh lá bài khi scan bằng camera. Miễn phí tại cloudinary.com.</p>
+                        
+                        <label class="form-label text-xs" for="cloudinaryName">Cloud Name</label>
+                        <input type="text" id="cloudinaryName" class="form-input mb-md" 
+                            value="${settings.cloudinaryCloudName || ''}" placeholder="VD: dxyz123abc">
+                        
+                        <label class="form-label text-xs" for="cloudinaryPreset">Upload Preset (Unsigned)</label>
+                        <input type="text" id="cloudinaryPreset" class="form-input mb-md" 
+                            value="${settings.cloudinaryUploadPreset || ''}" placeholder="VD: tarot_upload">
+                            
+                        <button class="btn btn-primary w-full" id="btnSaveCloudinary">💾 Lưu Cloudinary</button>
                     </div>
                 </div>
 
@@ -396,6 +398,19 @@ const Settings = {
             } finally {
                 Loading.hide();
             }
+        });
+
+        // --- Cloudinary: Save ---
+        document.getElementById('btnSaveCloudinary')?.addEventListener('click', async () => {
+            const name = document.getElementById('cloudinaryName')?.value.trim();
+            const preset = document.getElementById('cloudinaryPreset')?.value.trim();
+
+            App.settings.cloudinaryCloudName = name;
+            App.settings.cloudinaryUploadPreset = preset;
+            await Store.setSetting('cloudinaryCloudName', name);
+            await Store.setSetting('cloudinaryUploadPreset', preset);
+
+            Toast.success("Đã lưu cấu hình Cloudinary!");
         });
 
         // --- Display Settings (Immediate save) ---
