@@ -551,10 +551,14 @@ const DeckManager = {
                                 <div class="progress-bar-fill" style="width: ${progressPct}%"></div>
                             </div>
                             
-                            <div class="flex gap-sm mt-md">
-                                <button class="btn btn-secondary btn-sm" onclick="Toast.info('Import Mặt Sau to be implemented later')">Import Mặt Sau</button>
+                            <div class="flex gap-sm mt-md flex-wrap">
+                                <button class="btn btn-secondary btn-sm relative" id="btnImportBackImage">
+                                    Import Mặt Sau
+                                    <input type="file" id="backImageFileInput" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                                </button>
                                 <button class="btn btn-primary btn-sm" id="btnImportCompanionDetail">Import Sách Hướng Dẫn</button>
-                                <button class="btn btn-secondary btn-icon" title="Scan toàn bộ" onclick="Toast.info('Scan Bộ Bài to be implemented later')">📷</button>
+                                <button class="btn btn-secondary btn-sm" id="btnAutoFetchImages" title="Tự động tải hình từ web">🌐 Tải hình tự động</button>
+                                <button class="btn btn-secondary btn-icon" title="Scan từng lá qua Camera" id="btnBatchScan">📷</button>
                             </div>
                         </div>
                     </div>
@@ -562,7 +566,7 @@ const DeckManager = {
 
                 <h3 class="section-subtitle flex justify-between items-center bg-black bg-opacity-30 p-sm rounded sticky top-14 z-10">
                     <span>Lá Bài (${cards.length})</span>
-                    <button class="btn btn-icon btn-secondary" style="width:30px;height:30px;" title="Thêm lá bài trống" onclick="Toast.info('Add single card function placeholder')">+</button>
+                    <button class="btn btn-icon btn-secondary" style="width:30px;height:30px;" title="Thêm lá bài trống" id="btnAddSingleCard">+</button>
                 </h3>
                 
                 ${cardsHtml}
@@ -580,6 +584,165 @@ const DeckManager = {
                     CompanionImporter.openForDeck(deckId);
                 } else {
                     Toast.error("Companion Importer module is missing.");
+                }
+            });
+
+            // --- Import Back Image ---
+            document.getElementById('backImageFileInput')?.addEventListener('change', async (e) => {
+                const file = e.target.files && e.target.files[0];
+                if (!file) return;
+
+                try {
+                    Loading.show("Đang lưu mặt sau...");
+                    deck.backImage = file;
+                    deck.updatedAt = Date.now();
+                    await Store.set(STORES.DECKS, deck);
+                    await Store.addToSyncQueue('update', STORES.DECKS, deck.id, deck);
+                    
+                    // Refresh local state
+                    const idx = this._state.decks.findIndex(d => d.id === deck.id);
+                    if (idx >= 0) this._state.decks[idx] = deck;
+                    
+                    Toast.success("Đã import mặt sau thành công!");
+                    this._renderDeckDetail();
+                } catch (err) {
+                    console.error(err);
+                    Toast.error("Lỗi lưu mặt sau: " + err.message);
+                } finally {
+                    Loading.hide();
+                }
+            });
+
+            // --- Auto Fetch Images from Web (Public domain RWS) ---
+            document.getElementById('btnAutoFetchImages')?.addEventListener('click', async () => {
+                // Map common Tarot card names to their Wikipedia/public domain image filenames
+                const cardsWithoutImages = cards.filter(c => !c.image && !c.imageUrl);
+                
+                if (cardsWithoutImages.length === 0) {
+                    return Toast.info("Tất cả lá bài đều đã có hình ảnh rồi!");
+                }
+
+                const confirmed = confirm(
+                    `Sẽ thử tải hình cho ${cardsWithoutImages.length} lá bài chưa có ảnh từ nguồn công khai.\n\n` +
+                    `Lưu ý: Chỉ hoạt động tốt nhất với bộ Rider-Waite-Smith (bản quyền công khai).\n\n` +
+                    `Ngoài ra cũng sẽ tìm trên các nguồn khác nếu có. Tiếp tục?`
+                );
+                if (!confirmed) return;
+
+                let successCount = 0;
+                let failCount = 0;
+
+                Loading.show(`Đang tải hình... (0/${cardsWithoutImages.length})`);
+
+                for (let i = 0; i < cardsWithoutImages.length; i++) {
+                    const card = cardsWithoutImages[i];
+                    Loading.show(`Đang tải hình ${i + 1}/${cardsWithoutImages.length}: ${card.name}`);
+
+                    try {
+                        // Normalize card name for URL
+                        const slug = card.name
+                            .replace(/^(\d+)\s*[-–]\s*/, '') // Remove number prefix like "1 - "
+                            .replace(/\s+/g, '_')
+                            .replace(/['']/g, "'");
+
+                        // Try multiple public sources
+                        const sources = [
+                            // Wikimedia Commons - Rider-Waite-Smith (public domain since 2012)
+                            `https://upload.wikimedia.org/wikipedia/commons/thumb/${this._getWikiPath(card.name)}`,
+                            // Sacred Texts archive
+                            `https://www.sacred-texts.com/tarot/pkt/img/${this._getSacredTextPath(card.name)}`
+                        ];
+
+                        let fetched = false;
+                        for (const imgUrl of sources) {
+                            if (!imgUrl) continue;
+                            try {
+                                const res = await fetch(imgUrl, { mode: 'cors' });
+                                if (res.ok) {
+                                    const blob = await res.blob();
+                                    if (blob.size > 1000) { // Sanity check: not an error page
+                                        card.image = new File([blob], `${slug}.jpg`, { type: blob.type });
+                                        card.imageUrl = imgUrl;
+                                        card.imageDownloaded = true;
+                                        await Store.set(STORES.CARDS, card);
+                                        successCount++;
+                                        fetched = true;
+                                        break;
+                                    }
+                                }
+                            } catch (fetchErr) {
+                                // silently continue to next source
+                            }
+                        }
+                        if (!fetched) failCount++;
+                    } catch (err) {
+                        failCount++;
+                    }
+                }
+
+                Loading.hide();
+                Toast.success(`Hoàn tất! ✅ ${successCount} thành công, ❌ ${failCount} không tìm thấy.`);
+                this._renderDeckDetail(); // Refresh view
+            });
+
+            // --- Batch Scan via Camera ---
+            document.getElementById('btnBatchScan')?.addEventListener('click', () => {
+                const cardsWithoutImages = cards.filter(c => !c.image && !c.imageUrl);
+                if (cardsWithoutImages.length === 0) {
+                    return Toast.info("Tất cả lá bài đều đã có hình rồi!");
+                }
+
+                // Open scanner for the first card without image
+                const firstCard = cardsWithoutImages[0];
+                Toast.info(`Bắt đầu scan từ lá: ${firstCard.name} (${cardsWithoutImages.length} lá còn thiếu)`);
+                
+                if (typeof CardScanner !== 'undefined') {
+                    CardScanner.openForCard(firstCard.id, () => {
+                        this._renderDeckDetail(); // Refresh to show new image
+                    });
+                } else {
+                    Toast.error("Module Card Scanner chưa được tải.");
+                }
+            });
+
+            // --- Add Single Card ---
+            document.getElementById('btnAddSingleCard')?.addEventListener('click', async () => {
+                const name = prompt("Nhập tên lá bài mới:");
+                if (!name || !name.trim()) return;
+
+                try {
+                    Loading.show("Đang thêm...");
+                    const newCard = {
+                        id: generateId(),
+                        deckId: deckId,
+                        name: name.trim(),
+                        nameVi: '',
+                        number: cards.length + 1,
+                        suit: null,
+                        arcana: null,
+                        image: null,
+                        imageUrl: null,
+                        imageDownloaded: false,
+                        keywords: [],
+                        details: '',
+                        reversedDetails: '',
+                        companionText: '',
+                        sortOrder: cards.length
+                    };
+                    await Store.set(STORES.CARDS, newCard);
+                    
+                    // Update deck card count
+                    deck.cardCount = (deck.cardCount || 0) + 1;
+                    deck.updatedAt = Date.now();
+                    await Store.set(STORES.DECKS, deck);
+
+                    Toast.success(`Đã thêm lá "${name.trim()}"`);
+                    this._renderDeckDetail();
+                } catch (err) {
+                    console.error(err);
+                    Toast.error("Lỗi thêm lá bài: " + err.message);
+                } finally {
+                    Loading.hide();
                 }
             });
 
@@ -746,6 +909,73 @@ const DeckManager = {
                  Loading.hide();
              }
         });
+    },
+
+    // ==========================================
+    // Image URL Helpers for Auto-Fetch
+    // ==========================================
+
+    /**
+     * Get Wikipedia Commons thumbnail path for RWS cards
+     * Returns null if card name can't be mapped
+     */
+    _getWikiPath(cardName) {
+        // RWS cards on Wikimedia Commons follow this pattern:
+        // Major Arcana: "RWS_Tarot_00_Fool.jpg" etc.
+        // Source: https://commons.wikimedia.org/wiki/Category:Rider-Waite-Smith_tarot_deck
+        const majorMap = {
+            'The Fool': '4/4a/RWS_Tarot_00_Fool.jpg/200px-RWS_Tarot_00_Fool.jpg',
+            'The Magician': 'd/de/RWS_Tarot_01_Magician.jpg/200px-RWS_Tarot_01_Magician.jpg',
+            'The High Priestess': '8/88/RWS_Tarot_02_High_Priestess.jpg/200px-RWS_Tarot_02_High_Priestess.jpg',
+            'The Empress': 'd/d2/RWS_Tarot_03_Empress.jpg/200px-RWS_Tarot_03_Empress.jpg',
+            'The Emperor': 'c/c3/RWS_Tarot_04_Emperor.jpg/200px-RWS_Tarot_04_Emperor.jpg',
+            'The Hierophant': '8/8d/RWS_Tarot_05_Hierophant.jpg/200px-RWS_Tarot_05_Hierophant.jpg',
+            'The Lovers': '3/3a/RWS_Tarot_06_Lovers.jpg/200px-RWS_Tarot_06_Lovers.jpg',
+            'The Chariot': '9/9b/RWS_Tarot_07_Chariot.jpg/200px-RWS_Tarot_07_Chariot.jpg',
+            'Strength': 'f/f5/RWS_Tarot_08_Strength.jpg/200px-RWS_Tarot_08_Strength.jpg',
+            'The Hermit': '4/4d/RWS_Tarot_09_Hermit.jpg/200px-RWS_Tarot_09_Hermit.jpg',
+            'Wheel of Fortune': '3/3c/RWS_Tarot_10_Wheel_of_Fortune.jpg/200px-RWS_Tarot_10_Wheel_of_Fortune.jpg',
+            'Justice': 'e/e0/RWS_Tarot_11_Justice.jpg/200px-RWS_Tarot_11_Justice.jpg',
+            'The Hanged Man': '2/2b/RWS_Tarot_12_Hanged_Man.jpg/200px-RWS_Tarot_12_Hanged_Man.jpg',
+            'Death': 'd/d7/RWS_Tarot_13_Death.jpg/200px-RWS_Tarot_13_Death.jpg',
+            'Temperance': 'f/f8/RWS_Tarot_14_Temperance.jpg/200px-RWS_Tarot_14_Temperance.jpg',
+            'The Devil': '5/55/RWS_Tarot_15_Devil.jpg/200px-RWS_Tarot_15_Devil.jpg',
+            'The Tower': '5/53/RWS_Tarot_16_Tower.jpg/200px-RWS_Tarot_16_Tower.jpg',
+            'The Star': 'd/db/RWS_Tarot_17_Star.jpg/200px-RWS_Tarot_17_Star.jpg',
+            'The Moon': '7/7f/RWS_Tarot_18_Moon.jpg/200px-RWS_Tarot_18_Moon.jpg',
+            'The Sun': '1/17/RWS_Tarot_19_Sun.jpg/200px-RWS_Tarot_19_Sun.jpg',
+            'Judgement': 'd/dd/RWS_Tarot_20_Judgement.jpg/200px-RWS_Tarot_20_Judgement.jpg',
+            'The World': 'f/ff/RWS_Tarot_21_World.jpg/200px-RWS_Tarot_21_World.jpg'
+        };
+
+        if (majorMap[cardName]) return majorMap[cardName];
+
+        // Minor Arcana: Try pattern "Suit_NN.jpg"
+        const suitMap = { 'Wands': 'Wands', 'Cups': 'Cups', 'Swords': 'Swords', 'Pentacles': 'Pents' };
+        const rankMap = {
+            'Ace': '01', 'Two': '02', 'Three': '03', 'Four': '04', 'Five': '05',
+            'Six': '06', 'Seven': '07', 'Eight': '08', 'Nine': '09', 'Ten': '10',
+            'Page': '11', 'Knight': '12', 'Queen': '13', 'King': '14'
+        };
+
+        for (const [suit, suitCode] of Object.entries(suitMap)) {
+            for (const [rank, num] of Object.entries(rankMap)) {
+                if (cardName.includes(rank) && cardName.includes(suit)) {
+                    return null; // Wikimedia minor arcana paths are inconsistent, skip
+                }
+            }
+        }
+
+        return null;
+    },
+
+    /**
+     * Get Sacred Texts image path for RWS cards (not always CORS-enabled)
+     */
+    _getSacredTextPath(cardName) {
+        // Sacred texts uses filenames like "ar00.jpg" for major arcana
+        // This is a best-effort mapping
+        return null; // Disabled: sacred-texts blocks CORS
     },
 
     // ==========================================
