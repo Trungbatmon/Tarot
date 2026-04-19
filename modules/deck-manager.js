@@ -502,20 +502,32 @@ const DeckManager = {
             const backImgUrl = deck.backImage ? URL.createObjectURL(deck.backImage) : null;
             const backStyle = backImgUrl ? `background-image: url('${backImgUrl}'); background-size: cover;` : '';
 
-            // Render Cards Grid
-            let cardsHtml = '<div class="grid-auto gap-md">';
+            // Render Cards as vertical list with status indicators
+            let cardsHtml = '<div class="card-list-vertical">';
             cards.forEach(card => {
-                const frotImgUrl = card.image ? URL.createObjectURL(card.image) : null;
-                const frontStyle = frotImgUrl ? `background-image: url('${frotImgUrl}'); background-size: cover;` : '';
+                const hasImage = !!(card.image || card.imageUrl);
+                const hasKeywords = card.keywords && card.keywords.length > 0;
+                const hasDetails = !!(card.details && card.details.trim());
+                const hasReversed = !!(card.reversedDetails && card.reversedDetails.trim());
+                const hasCompanion = !!(card.companionText && card.companionText.trim());
+                const hasNameVi = !!(card.nameVi && card.nameVi.trim());
+                
+                const allDone = hasImage && hasKeywords && hasDetails;
                 
                 cardsHtml += `
-                    <div class="tarot-card-scene ${card.image || card.imageUrl ? 'card-has-image' : ''}" data-cardid="${card.id}" style="cursor:pointer;">
-                        <div class="tarot-card no-animation">
-                            <div class="tarot-card-face tarot-card-front" style="${frontStyle}">
-                                ${!frotImgUrl ? `<div class="card-back-placeholder"><span style="font-size: 0.5em">${card.number}</span></div>` : ''}
-                                <div class="tarot-card-name">${this._sanitize(card.name)}</div>
+                    <div class="card-list-item ${allDone ? 'card-complete' : ''}" data-cardid="${card.id}">
+                        <div class="card-list-number">${card.number || '—'}</div>
+                        <div class="card-list-info">
+                            <div class="card-list-name">${this._sanitize(card.name)}${hasNameVi ? ` <span class="text-muted text-xs">(${this._sanitize(card.nameVi)})</span>` : ''}</div>
+                            <div class="card-list-badges">
+                                <span class="status-dot ${hasImage ? 'dot-ok' : 'dot-miss'}" title="Hình ảnh">🖼️</span>
+                                <span class="status-dot ${hasKeywords ? 'dot-ok' : 'dot-miss'}" title="Từ khóa">🏷️</span>
+                                <span class="status-dot ${hasDetails ? 'dot-ok' : 'dot-miss'}" title="Ý nghĩa xuôi">📖</span>
+                                <span class="status-dot ${hasReversed ? 'dot-ok' : 'dot-miss'}" title="Ý nghĩa ngược">🔄</span>
+                                <span class="status-dot ${hasCompanion ? 'dot-ok' : 'dot-miss'}" title="Companion">📚</span>
                             </div>
                         </div>
+                        <div class="card-list-arrow">›</div>
                     </div>
                 `;
             });
@@ -564,12 +576,32 @@ const DeckManager = {
                     </div>
                 </div>
 
-                <h3 class="section-subtitle flex justify-between items-center bg-black bg-opacity-30 p-sm rounded sticky top-14 z-10">
+                <h3 class="section-subtitle flex justify-between items-center p-sm rounded sticky top-14 z-10" style="background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);">
                     <span>Lá Bài (${cards.length})</span>
                     <button class="btn btn-icon btn-secondary" style="width:30px;height:30px;" title="Thêm lá bài trống" id="btnAddSingleCard">+</button>
                 </h3>
                 
+                <div class="flex gap-sm justify-between items-center mb-md">
+                    <div class="card mb-0 p-sm flex-1" style="font-size: 0.7em;">
+                        <div class="flex gap-md justify-center text-muted flex-wrap">
+                            <span>🖼️ <strong class="text-gold">${cards.filter(c => c.image || c.imageUrl).length}</strong>/${cards.length}</span>
+                            <span>🏷️ <strong class="text-gold">${cards.filter(c => c.keywords?.length).length}</strong>/${cards.length}</span>
+                            <span>📖 <strong class="text-gold">${cards.filter(c => c.details?.trim()).length}</strong>/${cards.length}</span>
+                            <span>📚 <strong class="text-gold">${cards.filter(c => c.companionText?.trim()).length}</strong>/${cards.length}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex gap-xs mb-md" id="viewModeSwitcher">
+                    <button class="btn btn-sm ${(this._state.cardViewMode || 'list') === 'list' ? 'btn-primary' : 'btn-secondary'}" data-mode="list" title="Danh sách">☰</button>
+                    <button class="btn btn-sm ${this._state.cardViewMode === 'grid-sm' ? 'btn-primary' : 'btn-secondary'}" data-mode="grid-sm" title="Ảnh nhỏ">▦</button>
+                    <button class="btn btn-sm ${this._state.cardViewMode === 'grid-lg' ? 'btn-primary' : 'btn-secondary'}" data-mode="grid-lg" title="Ảnh lớn">▣</button>
+                </div>
+
                 ${cardsHtml}
+
+                ${this._renderCardGrid(cards, 'grid-sm')}
+                ${this._renderCardGrid(cards, 'grid-lg')}
             `;
 
             this._container.innerHTML = html;
@@ -577,6 +609,20 @@ const DeckManager = {
             document.getElementById('btnBackFromDetail')?.addEventListener('click', () => {
                 this._state.currentView = 'list';
                 this._renderMainView();
+            });
+
+            // --- View Mode Switcher ---
+            const currentMode = this._state.cardViewMode || 'list';
+            // Show only the active view
+            document.querySelector('.card-list-vertical').style.display = currentMode === 'list' ? 'flex' : 'none';
+            document.querySelector('.card-grid-sm')?.style && (document.querySelector('.card-grid-sm').style.display = currentMode === 'grid-sm' ? 'grid' : 'none');
+            document.querySelector('.card-grid-lg')?.style && (document.querySelector('.card-grid-lg').style.display = currentMode === 'grid-lg' ? 'grid' : 'none');
+
+            document.querySelectorAll('#viewModeSwitcher button').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    this._state.cardViewMode = e.target.dataset.mode;
+                    this._renderDeckDetail(); // Re-render to update active state
+                });
             });
 
             document.getElementById('btnImportCompanionDetail')?.addEventListener('click', () => {
@@ -746,8 +792,8 @@ const DeckManager = {
                 }
             });
 
-            // Card Click Events to open Editor
-            document.querySelectorAll('.tarot-card-scene[data-cardid]').forEach(el => {
+            // Card Click Events to open Editor (all view modes)
+            document.querySelectorAll('.card-list-item[data-cardid], .card-grid-item[data-cardid]').forEach(el => {
                 el.addEventListener('click', (e) => {
                     this._state.currentView = 'edit-card';
                     this._state.editingCardId = e.currentTarget.dataset.cardid;
@@ -788,17 +834,29 @@ const DeckManager = {
             <h2 class="section-title text-center mb-0">${this._sanitize(card.name)}</h2>
             ${card.arcana || card.suit ? `<p class="text-center text-muted text-sm mb-lg">${[card.arcana, card.suit].filter(Boolean).join(' - ')}</p>` : ''}
 
-            <!-- Card Image Box -->
-            <div class="flex justify-center mb-xl relative">
-                <div class="tarot-card-scene" style="width: 140px; cursor:pointer;" id="btnOpenScanner">
-                    <div class="tarot-card no-animation">
-                        <div class="tarot-card-face tarot-card-front" style="${frontStyle}">
-                            ${!frontImgUrl ? `<div class="card-back-placeholder"><span style="font-size: 0.5em">${card.number}</span></div>` : ''}
-                        </div>
-                    </div>
+            <!-- Card Image -->
+            <div class="card mb-xl p-md text-center">
+                <div class="mb-md" id="cardImagePreview">
+                    ${frontImgUrl 
+                        ? `<img src="${frontImgUrl}" alt="${this._sanitize(card.name)}" style="max-height: 220px; border-radius: var(--radius-md); margin: 0 auto; display: block; border: 1px solid rgba(212,165,116,0.3);">` 
+                        : `<div style="height: 160px; display:flex; align-items:center; justify-content:center; border: 2px dashed rgba(255,255,255,0.1); border-radius: var(--radius-md); color: var(--text-muted);">
+                            <span>Chưa có hình ảnh</span>
+                           </div>`
+                    }
                 </div>
-                <!-- Mini camera icon overlay -->
-                <button class="btn btn-icon btn-primary absolute" style="bottom: -15px; width:40px; height:40px; border:2px solid var(--bg-primary);" id="btnOpenScannerMini">📷</button>
+                <div class="flex gap-sm justify-center flex-wrap">
+                    <button class="btn btn-primary btn-sm relative">
+                        📷 Chụp ảnh
+                        <input type="file" id="cardImageCapture" accept="image/*" capture="environment" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                    </button>
+                    <button class="btn btn-secondary btn-sm relative">
+                        🖼️ Chọn file
+                        <input type="file" id="cardImageFile" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                    </button>
+                    <button class="btn btn-secondary btn-sm" id="btnPasteImage">📋 Dán ảnh</button>
+                    <button class="btn btn-secondary btn-sm" id="btnSearchImage">🔍 Tìm ảnh AI</button>
+                </div>
+                ${card.image ? '<button class="btn btn-danger btn-sm mt-md" id="btnRemoveImage">🗑️ Xóa ảnh</button>' : ''}
             </div>
 
             <div class="card mb-xl">
@@ -828,7 +886,14 @@ const DeckManager = {
                 </div>
             </div>
 
-            <button id="btnSaveCard" class="btn btn-success w-full mb-md">Lưu Chi Tiết Lá Bài</button>
+            ${card.companionText ? `
+            <div class="card mb-xl">
+                <h3 class="section-subtitle">📚 Nội dung Companion Book</h3>
+                <p class="text-sm text-muted" style="white-space: pre-wrap; max-height: 200px; overflow-y: auto;">${this._sanitize(card.companionText)}</p>
+            </div>
+            ` : ''}
+
+            <button id="btnSaveCard" class="btn btn-success w-full mb-md">💾 Lưu Chi Tiết Lá Bài</button>
             <button id="btnAiAutoContext" class="btn btn-secondary w-full mb-3xl">
                 <span class="icon text-gold">✨</span> Nhờ AI điền thông tin tự động
             </button>
@@ -847,20 +912,78 @@ const DeckManager = {
             this._renderMainView();
         });
 
-        // Open Scanner
-        const openScanner = () => {
-            if (typeof CardScanner !== 'undefined') {
-                CardScanner.openForCard(card.id, () => {
-                    // Refresh view automatically on success capture
-                    this._renderCardEditor(); 
-                });
-            } else {
-                Toast.error("Card Scanner module not loaded.");
+        // --- Image: Save helper ---
+        const saveImageToCard = async (file) => {
+            try {
+                Loading.show("Đang lưu hình...");
+                card.image = file;
+                card.imageUrl = null;
+                card.imageDownloaded = true;
+                await Store.set(STORES.CARDS, card);
+                Toast.success("Đã lưu hình ảnh!");
+                this._renderCardEditor(); // Refresh to show new image
+            } catch (err) {
+                console.error(err);
+                Toast.error("Lỗi lưu hình: " + err.message);
+            } finally {
+                Loading.hide();
             }
         };
 
-        document.getElementById('btnOpenScanner')?.addEventListener('click', openScanner);
-        document.getElementById('btnOpenScannerMini')?.addEventListener('click', openScanner);
+        // --- Image: Camera capture ---
+        document.getElementById('cardImageCapture')?.addEventListener('change', (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (file) saveImageToCard(file);
+        });
+
+        // --- Image: File import ---
+        document.getElementById('cardImageFile')?.addEventListener('change', (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (file) saveImageToCard(file);
+        });
+
+        // --- Image: Paste from clipboard ---
+        document.getElementById('btnPasteImage')?.addEventListener('click', async () => {
+            try {
+                const clipItems = await navigator.clipboard.read();
+                for (const item of clipItems) {
+                    const imageType = item.types.find(t => t.startsWith('image/'));
+                    if (imageType) {
+                        const blob = await item.getType(imageType);
+                        const file = new File([blob], 'pasted_image.png', { type: imageType });
+                        await saveImageToCard(file);
+                        return;
+                    }
+                }
+                Toast.warning("Clipboard không chứa hình ảnh. Hãy copy ảnh trước rồi bấm Dán.");
+            } catch (err) {
+                Toast.error("Không thể đọc clipboard. Thử dùng Chọn file thay thế.");
+            }
+        });
+
+        // --- Image: Remove ---
+        document.getElementById('btnRemoveImage')?.addEventListener('click', async () => {
+            if (!confirm("Xóa hình ảnh lá bài này?")) return;
+            card.image = null;
+            card.imageUrl = null;
+            card.imageDownloaded = false;
+            await Store.set(STORES.CARDS, card);
+            Toast.success("Đã xóa hình.");
+            this._renderCardEditor();
+        });
+
+        // --- Image: Gemini Search Bridge ---
+        document.getElementById('btnSearchImage')?.addEventListener('click', () => {
+            const deck = this._state.decks.find(d => d.id === card.deckId);
+            const deckName = deck ? deck.name : '';
+            const query = encodeURIComponent(`${card.name} ${deckName} tarot card image`);
+            
+            // Open Google Image Search in new tab
+            const searchUrl = `https://www.google.com/search?tbm=isch&q=${query}`;
+            window.open(searchUrl, '_blank');
+            
+            Toast.info("Tìm thấy hình phù hợp? Copy ảnh rồi quay lại bấm 📋 Dán ảnh!");
+        });
 
         // Save
         document.getElementById('btnSaveCard')?.addEventListener('click', async () => {
@@ -976,6 +1099,31 @@ const DeckManager = {
         // Sacred texts uses filenames like "ar00.jpg" for major arcana
         // This is a best-effort mapping
         return null; // Disabled: sacred-texts blocks CORS
+    },
+
+    // ==========================================
+    // Card Grid Renderers (Image Views)
+    // ==========================================
+
+    _renderCardGrid(cards, mode) {
+        const isLarge = mode === 'grid-lg';
+        const cssClass = isLarge ? 'card-grid-lg' : 'card-grid-sm';
+        
+        let html = `<div class="${cssClass}">`;
+        cards.forEach(card => {
+            const imgUrl = card.image ? URL.createObjectURL(card.image) : null;
+            
+            html += `
+                <div class="card-grid-item" data-cardid="${card.id}">
+                    <div class="card-grid-thumb" ${imgUrl ? `style="background-image: url('${imgUrl}');"` : ''}>
+                        ${!imgUrl ? `<span class="card-grid-no-img">${card.number || '?'}</span>` : ''}
+                    </div>
+                    <div class="card-grid-label">${this._sanitize(card.name)}</div>
+                </div>
+            `;
+        });
+        html += '</div>';
+        return html;
     },
 
     // ==========================================
