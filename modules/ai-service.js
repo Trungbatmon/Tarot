@@ -72,37 +72,59 @@ Raw Text Block:
     },
 
     /**
-     * Test Gemini Connection
+     * Test Gemini Connection (self-contained, no internal dependencies)
      */
     async testGemini() {
-        if (!this.isGeminiAvailable()) throw new Error("Chưa có API Key Gemini");
-        const targetModel = App.settings.geminiModel || 'gemini-1.5-flash';
-        const response = await this._callGemini("Respond only with the word 'OK'", targetModel);
-        if (!response || !response.toLowerCase().includes('ok')) throw new Error("Phản hồi lỗi.");
+        const apiKey = App.settings.geminiApiKey;
+        if (!apiKey) throw new Error("Chưa có API Key Gemini");
+
+        const model = App.settings.geminiModel || 'gemini-2.0-flash';
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: "Respond with OK" }] }],
+                generationConfig: { temperature: 0, maxOutputTokens: 5 }
+            })
+        });
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error?.message || `HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+        if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
+            throw new Error("API trả về rỗng — Key có thể bị giới hạn.");
+        }
         return true;
     },
 
     /**
-     * Test OpenAI Connection
+     * Test OpenAI Connection (self-contained)
      */
     async testOpenAI() {
-        if (!this.isOpenAIAvailable()) throw new Error("Chưa có API Key OpenAI");
-        const response = await fetch(this.OPENAI_API_URL, {
+        const apiKey = App.settings.openaiApiKey;
+        if (!apiKey) throw new Error("Chưa có API Key OpenAI");
+
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${App.settings.openaiApiKey}`
+                'Authorization': `Bearer ${apiKey}`
             },
             body: JSON.stringify({
                 model: 'gpt-4o-mini',
-                messages: [{ role: 'user', content: 'Respond only with OK' }],
+                messages: [{ role: 'user', content: 'Respond with OK' }],
                 max_tokens: 5
             })
         });
         
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error?.message || `HTTP Error ${response.status}`);
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error?.message || `HTTP ${res.status}`);
         }
         return true;
     },
@@ -131,7 +153,7 @@ Raw Text Block:
             .replace('{category}', category);
 
         try {
-            const rawResponse = await this._callGemini(prompt, 'gemini-1.5-flash');
+            const rawResponse = await this._callGemini(prompt, 'gemini-2.0-flash');
             
             // Extract JSON from response (handle potential markdown formatting)
             let jsonString = rawResponse;
@@ -171,7 +193,7 @@ Raw Text Block:
             .replace('{referenceText}', referenceText ? referenceText.substring(0, 3000) : 'None'); // limit length to avoid massive tokens
 
         try {
-            const rawResponse = await this._callGemini(prompt, 'gemini-1.5-flash');
+            const rawResponse = await this._callGemini(prompt, 'gemini-2.0-flash');
             
             let jsonString = rawResponse;
             const jsonMatch = rawResponse.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
@@ -205,7 +227,7 @@ Raw Text Block:
             .replace('{rawText}', rawText.substring(0, 15000)); // limit 15k chars per chunk roughly
 
         try {
-            const rawResponse = await this._callGemini(prompt, 'gemini-1.5-flash');
+            const rawResponse = await this._callGemini(prompt, 'gemini-2.0-flash');
             
             let jsonString = rawResponse;
             const jsonMatch = rawResponse.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
@@ -272,7 +294,7 @@ Raw Text Block:
      * @param {string} fallbackModel
      * @returns {Promise<string>}
      */
-    async _callGemini(prompt, fallbackModel = 'gemini-1.5-flash') {
+    async _callGemini(prompt, fallbackModel = 'gemini-2.0-flash') {
         const apiKey = App.settings.geminiApiKey;
         if (!apiKey) throw new Error("Missing Gemini API Key");
 

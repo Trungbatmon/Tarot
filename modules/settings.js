@@ -34,20 +34,24 @@ const Settings = {
                     
                     <div class="form-group mb-xl">
                         <label class="form-label text-warning" style="font-size: 1.1em;">🪐 Google Gemini (API Mặc định)</label>
-                        <p class="text-sm text-muted mb-md">Gemini chịu trách nhiệm làm Tác vụ Cốt lõi: Dịch nghĩa lá bài tự động, Gợi ý danh sách, Đọc sách Companion Book, Giải mã Tarot Readings.</p>
+                        <p class="text-sm text-muted mb-md">Tác vụ chính: Dịch nghĩa lá bài, Gợi ý danh sách, Đọc Companion Book, Giải mã Tarot.</p>
                         
-                        <div class="mb-sm">
-                            <label class="form-label text-xs" for="geminiModel">Phiên bản Model Model (Nên để nguyên)</label>
-                            <input type="text" id="geminiModel" class="form-input mb-md" style="font-family: monospace;"
-                                value="${settings.geminiModel || 'gemini-1.5-flash'}" placeholder="gemini-1.5-flash">
-                        </div>
-
-                        <label class="form-label text-xs" for="geminiApiKey">Nhập Google Gemini API Key</label>
+                        <label class="form-label text-xs" for="geminiApiKey">API Key</label>
                         <input type="password" id="geminiApiKey" class="form-input mb-md" 
                             value="${settings.geminiApiKey || ''}" placeholder="AIzaSy...">
+
+                        <label class="form-label text-xs" for="geminiModel">Model AI</label>
+                        <div class="flex gap-sm mb-md">
+                            <select id="geminiModel" class="form-select flex-1" style="font-family: monospace;">
+                                <option value="">-- Nhập Key rồi bấm Tải danh sách --</option>
+                            </select>
+                            <button class="btn btn-secondary btn-sm" id="btnLoadModels" title="Tải danh sách model">🔄</button>
+                        </div>
+                        <p class="text-xs text-muted mb-md" id="geminiModelStatus">Model hiện tại: <strong>${settings.geminiModel || 'chưa chọn'}</strong></p>
                             
                         <div class="flex gap-sm">
-                            <button class="btn btn-secondary flex-1" id="btnTestGemini">✨ Kiểm tra kết nối</button>
+                            <button class="btn btn-primary flex-1" id="btnSaveGemini">💾 Lưu Key</button>
+                            <button class="btn btn-secondary flex-1" id="btnTestGemini">✨ Kiểm tra</button>
                         </div>
                     </div>
 
@@ -55,14 +59,15 @@ const Settings = {
 
                     <div class="form-group mb-xl">
                         <label class="form-label text-info" style="font-size: 1.1em;">🤖 OpenAI / ChatGPT (Dự phòng)</label>
-                        <p class="text-sm text-muted mb-md">Dùng làm AI thay thế nếu Google Gemini bị lỗi hoặc bạn muốn GPT-4 giải bài chi tiết hơn.</p>
+                        <p class="text-sm text-muted mb-md">AI thay thế khi Gemini lỗi, hoặc dùng GPT-4 để giải bài chi tiết hơn.</p>
                         
-                        <label class="form-label text-xs" for="openaiApiKey">Nhập OpenAI API Key</label>
+                        <label class="form-label text-xs" for="openaiApiKey">API Key</label>
                         <input type="password" id="openaiApiKey" class="form-input mb-md" 
                             value="${settings.openaiApiKey || ''}" placeholder="sk-...">
                             
                         <div class="flex gap-sm">
-                            <button class="btn btn-secondary flex-1" id="btnTestOpenAI">🤖 Kiểm tra OpenAI</button>
+                            <button class="btn btn-primary flex-1" id="btnSaveOpenAI">💾 Lưu Key</button>
+                            <button class="btn btn-secondary flex-1" id="btnTestOpenAI">🤖 Kiểm tra</button>
                         </div>
                     </div>
 
@@ -207,33 +212,191 @@ const Settings = {
         this._attachEvents();
     },
 
-    /**
-     * Attach all DOM events for the settings view
-     */
     _attachEvents() {
-        // --- API Keys (Auto-save instantly) ---
+        // --- Generic auto-save for non-sensitive inputs ---
         const bindInput = (id, keyName) => {
             const input = document.getElementById(id);
             if (!input) return;
-            
             const saveHandler = async () => {
                 const val = input.value.trim();
                 App.settings[keyName] = val;
                 await Store.setSetting(keyName, val);
             };
-
             input.addEventListener('input', saveHandler);
             input.addEventListener('change', saveHandler);
         };
 
-        bindInput('geminiApiKey', 'geminiApiKey');
-        bindInput('geminiModel', 'geminiModel');
-        bindInput('openaiApiKey', 'openaiApiKey');
+        // Only auto-save non-sensitive fields
         bindInput('cloudinaryName', 'cloudinaryCloudName');
         bindInput('cloudinaryPreset', 'cloudinaryUploadPreset');
         bindInput('dropboxAppKey', 'dropboxAppKey');
         bindInput('gdriveClientId', 'gdriveClientId');
 
+        // --- Gemini: Save Key + Model ---
+        document.getElementById('btnSaveGemini')?.addEventListener('click', async () => {
+            const keyInput = document.getElementById('geminiApiKey');
+            const modelSelect = document.getElementById('geminiModel');
+            const key = keyInput?.value.trim();
+            const model = modelSelect?.value;
+
+            if (!key) return Toast.warning("Vui lòng nhập API Key.");
+
+            App.settings.geminiApiKey = key;
+            await Store.setSetting('geminiApiKey', key);
+
+            if (model) {
+                App.settings.geminiModel = model;
+                await Store.setSetting('geminiModel', model);
+                document.getElementById('geminiModelStatus').innerHTML = 
+                    `Model hiện tại: <strong>${model}</strong>`;
+            }
+
+            Toast.success("Đã lưu Gemini API Key" + (model ? ` & model ${model}` : ""));
+        });
+
+        // --- Gemini: Load Models from Google ---
+        document.getElementById('btnLoadModels')?.addEventListener('click', async () => {
+            const keyInput = document.getElementById('geminiApiKey');
+            const key = keyInput?.value.trim();
+            if (!key) return Toast.warning("Vui lòng nhập API Key trước.");
+
+            try {
+                Loading.show("Đang tải danh sách model...");
+                const res = await fetch(
+                    `https://generativelanguage.googleapis.com/v1beta/models?key=${key}`
+                );
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.error?.message || `HTTP ${res.status}`);
+                }
+                const data = await res.json();
+                const models = (data.models || [])
+                    .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
+                    .map(m => ({
+                        id: m.name.replace('models/', ''),
+                        displayName: m.displayName || m.name.replace('models/', '')
+                    }))
+                    .sort((a, b) => a.id.localeCompare(b.id));
+
+                const select = document.getElementById('geminiModel');
+                select.innerHTML = '';
+                
+                if (models.length === 0) {
+                    select.innerHTML = '<option value="">Không tìm thấy model nào</option>';
+                    Toast.warning("API Key hợp lệ nhưng không có model khả dụng.");
+                    return;
+                }
+
+                const currentModel = App.settings.geminiModel || '';
+                models.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m.id;
+                    opt.textContent = `${m.id} — ${m.displayName}`;
+                    if (m.id === currentModel) opt.selected = true;
+                    select.appendChild(opt);
+                });
+
+                // Auto-select first if none matched
+                if (!currentModel || !models.find(m => m.id === currentModel)) {
+                    // Try to find gemini-2.0-flash or first flash model
+                    const preferred = models.find(m => m.id.includes('2.0-flash')) 
+                        || models.find(m => m.id.includes('flash'))
+                        || models[0];
+                    if (preferred) select.value = preferred.id;
+                }
+
+                Toast.success(`Tìm thấy ${models.length} model khả dụng!`);
+            } catch (err) {
+                Toast.error("Lỗi tải model: " + err.message);
+            } finally {
+                Loading.hide();
+            }
+        });
+
+        // --- Gemini: Test ---
+        document.getElementById('btnTestGemini')?.addEventListener('click', async () => {
+            const keyInput = document.getElementById('geminiApiKey');
+            const modelSelect = document.getElementById('geminiModel');
+            const key = keyInput?.value.trim();
+            const model = modelSelect?.value;
+
+            if (!key) return Toast.warning("Vui lòng nhập API Key trước.");
+            if (!model) return Toast.warning("Vui lòng chọn Model trước (bấm 🔄 để tải danh sách).");
+
+            try {
+                Loading.show(`Đang kiểm tra ${model}...`);
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: "Respond with OK" }] }],
+                        generationConfig: { temperature: 0, maxOutputTokens: 5 }
+                    })
+                });
+
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.error?.message || `HTTP ${res.status}`);
+                }
+
+                const data = await res.json();
+                if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
+                    throw new Error("API trả về rỗng.");
+                }
+
+                Toast.success(`✅ Model ${model} hoạt động tốt!`);
+            } catch (err) {
+                Toast.error("Lỗi Gemini: " + err.message);
+            } finally {
+                Loading.hide();
+            }
+        });
+
+        // --- OpenAI: Save Key ---
+        document.getElementById('btnSaveOpenAI')?.addEventListener('click', async () => {
+            const keyInput = document.getElementById('openaiApiKey');
+            const key = keyInput?.value.trim();
+            if (!key) return Toast.warning("Vui lòng nhập API Key.");
+
+            App.settings.openaiApiKey = key;
+            await Store.setSetting('openaiApiKey', key);
+            Toast.success("Đã lưu OpenAI API Key!");
+        });
+
+        // --- OpenAI: Test ---
+        document.getElementById('btnTestOpenAI')?.addEventListener('click', async () => {
+            const keyInput = document.getElementById('openaiApiKey');
+            const key = keyInput?.value.trim();
+            if (!key) return Toast.warning("Vui lòng nhập API Key trước.");
+
+            try {
+                Loading.show("Đang kiểm tra OpenAI...");
+                const res = await fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${key}`
+                    },
+                    body: JSON.stringify({
+                        model: 'gpt-4o-mini',
+                        messages: [{ role: 'user', content: 'Respond with OK' }],
+                        max_tokens: 5
+                    })
+                });
+
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.error?.message || `HTTP ${res.status}`);
+                }
+
+                Toast.success("✅ OpenAI hoạt động tốt!");
+            } catch (err) {
+                Toast.error("Lỗi OpenAI: " + err.message);
+            } finally {
+                Loading.hide();
+            }
+        });
 
         // --- Display Settings (Immediate save) ---
         const bindToggle = (id, keyName, allowRefresh = false) => {
@@ -306,31 +469,6 @@ const Settings = {
             if (typeof CloudSync !== 'undefined') CloudSync.restoreFromDropbox();
         });
 
-        document.getElementById('btnTestGemini')?.addEventListener('click', async () => {
-            if (!App.settings.geminiApiKey) return Toast.warning("Vui lòng nhập API Key trước.");
-            try {
-                Loading.show("Đang kiểm tra kết nối Gemini...");
-                await AIService.testGemini();
-                Toast.success("Kết nối Gemini thành công! API Key hợp lệ.");
-            } catch (err) {
-                Toast.error("Lỗi Google Gemini: " + err.message);
-            } finally {
-                Loading.hide();
-            }
-        });
-
-        document.getElementById('btnTestOpenAI')?.addEventListener('click', async () => {
-            if (!App.settings.openaiApiKey) return Toast.warning("Vui lòng nhập API Key trước.");
-            try {
-                Loading.show("Đang kiểm tra kết nối OpenAI...");
-                await AIService.testOpenAI();
-                Toast.success("Kết nối OpenAI thành công! API Key hợp lệ.");
-            } catch (err) {
-                Toast.error("Lỗi OpenAI: " + err.message);
-            } finally {
-                Loading.hide();
-            }
-        });
 
         document.getElementById('btnExport')?.addEventListener('click', async () => {
             try {
