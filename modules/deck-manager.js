@@ -90,7 +90,14 @@ const DeckManager = {
             decksHtml = `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(${gridMin}, 1fr)); gap: 16px; margin-top: 16px;">`;
             filteredDecks.forEach(deck => {
                 const imgBlob = deck.coverImage || deck.backImage;
-                const backImgUrl = imgBlob ? URL.createObjectURL(imgBlob) : null;
+                let backImgUrl = null;
+                if (imgBlob && (imgBlob instanceof Blob || imgBlob instanceof File)) {
+                    try {
+                        backImgUrl = URL.createObjectURL(imgBlob);
+                    } catch(e) {
+                        console.error('Invalid image blob', e);
+                    }
+                }
                 const style = backImgUrl ? `background-image: url('${backImgUrl}'); background-size: cover; background-position: center;` : '';
                 
                 decksHtml += `
@@ -543,7 +550,10 @@ const DeckManager = {
             const cardsWithImages = cards.filter(c => c.image || c.imageUrl).length;
             const progressPct = cards.length > 0 ? (cardsWithImages / cards.length) * 100 : 0;
 
-            const backImgUrl = deck.backImage ? URL.createObjectURL(deck.backImage) : null;
+            let backImgUrl = null;
+            if (deck.backImage && (deck.backImage instanceof Blob || deck.backImage instanceof File)) {
+                try { backImgUrl = URL.createObjectURL(deck.backImage); } catch(e){}
+            }
             const backStyle = backImgUrl ? `background-image: url('${backImgUrl}'); background-size: cover;` : '';
 
             // Render Cards as vertical list with status indicators
@@ -863,7 +873,10 @@ const DeckManager = {
             return this._renderMainView();
         }
 
-        const frontImgUrl = card.image ? URL.createObjectURL(card.image) : null;
+        let frontImgUrl = null;
+        if (card.image && (card.image instanceof Blob || card.image instanceof File)) {
+            try { frontImgUrl = URL.createObjectURL(card.image); } catch(e){}
+        }
         const frontStyle = frontImgUrl ? `background-image: url('${frontImgUrl}'); background-size: cover;` : '';
 
         const html = `
@@ -1147,7 +1160,10 @@ const DeckManager = {
         
         let html = `<div class="${cssClass}">`;
         cards.forEach(card => {
-            const imgUrl = card.image ? URL.createObjectURL(card.image) : null;
+            let imgUrl = null;
+            if (card.image && (card.image instanceof Blob || card.image instanceof File)) {
+                try { imgUrl = URL.createObjectURL(card.image); } catch(e){}
+            }
             
             html += `
                 <div class="card-grid-item" data-cardid="${card.id}">
