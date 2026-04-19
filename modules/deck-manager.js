@@ -73,6 +73,7 @@ const DeckManager = {
     _renderListView() {
         const { activeCategory, decks } = this._state;
         const filteredDecks = decks.filter(d => d.category === activeCategory);
+        const viewMode = this._state.deckViewMode || 'grid-lg';
 
         let decksHtml = '';
 
@@ -85,16 +86,18 @@ const DeckManager = {
                 </div>
             `;
         } else {
-            decksHtml = `<div class="grid-2 gap-lg mt-lg">`;
+            const gridMin = viewMode === 'grid-sm' ? '110px' : (viewMode === 'list' ? '100%' : '160px');
+            decksHtml = `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(${gridMin}, 1fr)); gap: 16px; margin-top: 16px;">`;
             filteredDecks.forEach(deck => {
-                const backImgUrl = deck.backImage ? URL.createObjectURL(deck.backImage) : null;
-                const style = backImgUrl ? `background-image: url('${backImgUrl}'); background-size: cover;` : '';
+                const imgBlob = deck.coverImage || deck.backImage;
+                const backImgUrl = imgBlob ? URL.createObjectURL(imgBlob) : null;
+                const style = backImgUrl ? `background-image: url('${backImgUrl}'); background-size: cover; background-position: center;` : '';
                 
                 decksHtml += `
-                    <div class="card deck-card relative" data-id="${deck.id}">
+                    <div class="card deck-card relative ${viewMode === 'list' ? 'flex items-center gap-md' : ''}" data-id="${deck.id}">
                         ${deck.isDefault ? `<span class="badge badge-default absolute top-2 right-2 z-10" style="position:absolute; top:8px; right:8px; z-index:10;">${App.t('deck.default')}</span>` : ''}
                         
-                        <div class="tarot-card-scene" style="margin-bottom: var(--space-md);">
+                        <div class="tarot-card-scene" style="${viewMode === 'list' ? 'width: 60px; margin-bottom: 0;' : 'margin-bottom: var(--space-md); aspect-ratio: 2/3;'}">
                             <div class="tarot-card no-animation">
                                 <div class="tarot-card-face tarot-card-back" style="${style}">
                                     ${!backImgUrl ? '<div class="card-back-placeholder">🔮</div>' : ''}
@@ -102,15 +105,17 @@ const DeckManager = {
                             </div>
                         </div>
                         
-                        <h4 class="text-md font-bold mb-xs" style="color: var(--text-primary); text-align: center;">
-                            ${this._sanitize(deck.name)}
-                        </h4>
-                        
-                        <div class="text-xs text-muted text-center mb-md">
-                            ${deck.cardCount ? `${deck.cardCount} cards` : '...'}
+                        <div class="${viewMode === 'list' ? 'flex-1' : ''}">
+                            <h4 class="text-md font-bold mb-xs" style="color: var(--text-primary); ${viewMode === 'list' ? 'text-align: left;' : 'text-align: center;'}">
+                                ${this._sanitize(deck.name)}
+                            </h4>
+                            
+                            <div class="text-xs text-muted mb-md" style="${viewMode === 'list' ? 'text-align: left; margin-bottom:0;' : 'text-align: center;'}">
+                                ${deck.cardCount ? `${deck.cardCount} cards` : '...'}
+                            </div>
                         </div>
                         
-                        <div class="flex gap-sm">
+                        <div class="flex gap-sm ${viewMode === 'list' ? '' : 'w-full'}">
                             <button class="btn btn-secondary btn-sm w-full btn-open-deck" data-id="${deck.id}">Mở</button>
                             <button class="btn btn-icon btn-secondary btn-deck-menu" data-id="${deck.id}" style="width: 34px; height: 34px;">⋮</button>
                         </div>
@@ -123,7 +128,14 @@ const DeckManager = {
         const html = `
             <div class="flex justify-between items-center mb-xl">
                 <h2 class="section-title mb-0" style="margin-bottom: 0;">${App.t('deck.title')}</h2>
-                <button id="btnCreateDeckList" class="btn btn-primary btn-sm">+ ${App.t('common.add')}</button>
+                <div class="flex gap-sm items-center">
+                    <div class="flex gap-xs" id="deckViewModeSwitcher">
+                        <button class="btn btn-sm ${(this._state.deckViewMode || 'grid-lg') === 'grid-lg' ? 'btn-primary' : 'btn-secondary'}" data-mode="grid-lg" style="padding: 4px; min-height: 28px;" title="Ảnh Lớn">🔲</button>
+                        <button class="btn btn-sm ${this._state.deckViewMode === 'grid-sm' ? 'btn-primary' : 'btn-secondary'}" data-mode="grid-sm" style="padding: 4px; min-height: 28px;" title="Ảnh Nhỏ">▦</button>
+                        <button class="btn btn-sm ${this._state.deckViewMode === 'list' ? 'btn-primary' : 'btn-secondary'}" data-mode="list" style="padding: 4px; min-height: 28px;" title="Danh Sách">📄</button>
+                    </div>
+                    <button id="btnCreateDeckList" class="btn btn-primary btn-sm">+ ${App.t('common.add')}</button>
+                </div>
             </div>
 
             <div class="category-tabs">
@@ -155,6 +167,10 @@ const DeckManager = {
         const bodyHtml = `
             <div class="flex flex-col gap-md">
                 ${!deck.isDefault ? `<button class="btn btn-secondary w-full" id="menuSetDefault">📌 Đặt làm mặc định</button>` : ''}
+                <label class="btn btn-secondary w-full relative">
+                    🖼️ Thay ảnh đại diện
+                    <input type="file" id="menuChangeCover" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                </label>
                 <button class="btn btn-danger w-full" id="menuDeleteDeck">🗑️ Xóa bộ bài</button>
             </div>
         `;
@@ -170,6 +186,26 @@ const DeckManager = {
                 await this._setDefaultDeck(deckId);
             });
             
+            document.getElementById('menuChangeCover')?.addEventListener('change', async (e) => {
+                const file = e.target.files && e.target.files[0];
+                if (!file) return;
+                try {
+                    Loading.show("Đang lưu ảnh...");
+                    deck.coverImage = file;
+                    deck.updatedAt = Date.now();
+                    await Store.set(STORES.DECKS, deck);
+                    await Store.addToSyncQueue('update', STORES.DECKS, deck.id, deck);
+                    Modal.close();
+                    Toast.success("Đã cập nhật ảnh đại diện.");
+                    this._renderListView();
+                } catch (err) {
+                    console.error(err);
+                    Toast.error("Lỗi khi lưu ảnh: " + err.message);
+                } finally {
+                    Loading.hide();
+                }
+            });
+
             document.getElementById('menuDeleteDeck')?.addEventListener('click', async () => {
                 Modal.close();
                 const yes = await Modal.confirm("Xóa bộ bài", `Bạn có chắc muốn xóa bộ bài "${this._sanitize(deck.name)}" và tất cả lá bài bên trong? Hành động này không thể hoàn tác.`);
@@ -226,6 +262,14 @@ const DeckManager = {
         document.querySelectorAll('.category-tab').forEach(tab => {
             tab.addEventListener('click', (e) => {
                 this._state.activeCategory = e.target.dataset.cat;
+                this._renderListView();
+            });
+        });
+
+        // View Mode switching
+        document.querySelectorAll('#deckViewModeSwitcher button').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                this._state.deckViewMode = e.currentTarget.dataset.mode;
                 this._renderListView();
             });
         });
@@ -435,7 +479,7 @@ const DeckManager = {
                         id: generateId(),
                         deckId: deckId,
                         name: sc.name,
-                        nameVi: '',
+                        nameVi: sc.nameVi || '',
                         number: i + 1,
                         suit: sc.suit || null,
                         arcana: sc.arcana || null,
@@ -443,11 +487,11 @@ const DeckManager = {
                         imageUrl: null,
                         imageDownloaded: false,
                         keywords: [],
-                        keywordsVi: [],
+                        keywordsVi: sc.keywordsVi || [],
                         details: '',
-                        detailsVi: '',
+                        detailsVi: sc.detailsVi || '',
                         reversedDetails: '',
-                        reversedDetailsVi: '',
+                        reversedDetailsVi: sc.reversedDetailsVi || '',
                         companionText: '',
                         companionTextVi: '',
                         sortOrder: i
@@ -564,10 +608,10 @@ const DeckManager = {
                             </div>
                             
                             <div class="flex gap-sm mt-md flex-wrap">
-                                <button class="btn btn-secondary btn-sm relative" id="btnImportBackImage">
+                                <label class="btn btn-secondary btn-sm relative" id="btnImportBackImage">
                                     Import Mặt Sau
                                     <input type="file" id="backImageFileInput" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                                </button>
+                                </label>
                                 <button class="btn btn-primary btn-sm" id="btnImportCompanionDetail">Import Sách Hướng Dẫn</button>
                                 <button class="btn btn-secondary btn-sm" id="btnAutoFetchImages" title="Tự động tải hình từ web">🌐 Tải hình tự động</button>
                                 <button class="btn btn-secondary btn-icon" title="Scan từng lá qua Camera" id="btnBatchScan">📷</button>
@@ -692,8 +736,6 @@ const DeckManager = {
                             .replace(/['']/g, "'");
 
                         // Try multiple public sources
-                        const sources = [
-                            // Wikimedia Commons - Rider-Waite-Smith (public domain since 2012)
                             `https://upload.wikimedia.org/wikipedia/commons/thumb/${this._getWikiPath(card.name)}`,
                             // Sacred Texts archive
                             `https://www.sacred-texts.com/tarot/pkt/img/${this._getSacredTextPath(card.name)}`
@@ -845,14 +887,14 @@ const DeckManager = {
                     }
                 </div>
                 <div class="flex gap-sm justify-center flex-wrap">
-                    <button class="btn btn-primary btn-sm relative">
+                    <label class="btn btn-primary btn-sm relative">
                         📷 Chụp ảnh
                         <input type="file" id="cardImageCapture" accept="image/*" capture="environment" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                    </button>
-                    <button class="btn btn-secondary btn-sm relative">
+                    </label>
+                    <label class="btn btn-secondary btn-sm relative">
                         🖼️ Chọn file
                         <input type="file" id="cardImageFile" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                    </button>
+                    </label>
                     <button class="btn btn-secondary btn-sm" id="btnPasteImage">📋 Dán ảnh</button>
                     <button class="btn btn-secondary btn-sm" id="btnSearchImage">🔍 Tìm ảnh AI</button>
                 </div>
@@ -1039,52 +1081,46 @@ const DeckManager = {
     // ==========================================
 
     /**
-     * Get Wikipedia Commons thumbnail path for RWS cards
-     * Returns null if card name can't be mapped
+     * Get Wikipedia Commons filename for RWS cards
+     * Returns filename to be used with Special:FilePath
      */
     _getWikiPath(cardName) {
-        // RWS cards on Wikimedia Commons follow this pattern:
-        // Major Arcana: "RWS_Tarot_00_Fool.jpg" etc.
-        // Source: https://commons.wikimedia.org/wiki/Category:Rider-Waite-Smith_tarot_deck
+        const cleanName = cardName.replace(/^(\d+)\s*[-–]\s*/, '').trim();
+        
         const majorMap = {
-            'The Fool': '4/4a/RWS_Tarot_00_Fool.jpg/200px-RWS_Tarot_00_Fool.jpg',
-            'The Magician': 'd/de/RWS_Tarot_01_Magician.jpg/200px-RWS_Tarot_01_Magician.jpg',
-            'The High Priestess': '8/88/RWS_Tarot_02_High_Priestess.jpg/200px-RWS_Tarot_02_High_Priestess.jpg',
-            'The Empress': 'd/d2/RWS_Tarot_03_Empress.jpg/200px-RWS_Tarot_03_Empress.jpg',
-            'The Emperor': 'c/c3/RWS_Tarot_04_Emperor.jpg/200px-RWS_Tarot_04_Emperor.jpg',
-            'The Hierophant': '8/8d/RWS_Tarot_05_Hierophant.jpg/200px-RWS_Tarot_05_Hierophant.jpg',
-            'The Lovers': '3/3a/RWS_Tarot_06_Lovers.jpg/200px-RWS_Tarot_06_Lovers.jpg',
-            'The Chariot': '9/9b/RWS_Tarot_07_Chariot.jpg/200px-RWS_Tarot_07_Chariot.jpg',
-            'Strength': 'f/f5/RWS_Tarot_08_Strength.jpg/200px-RWS_Tarot_08_Strength.jpg',
-            'The Hermit': '4/4d/RWS_Tarot_09_Hermit.jpg/200px-RWS_Tarot_09_Hermit.jpg',
-            'Wheel of Fortune': '3/3c/RWS_Tarot_10_Wheel_of_Fortune.jpg/200px-RWS_Tarot_10_Wheel_of_Fortune.jpg',
-            'Justice': 'e/e0/RWS_Tarot_11_Justice.jpg/200px-RWS_Tarot_11_Justice.jpg',
-            'The Hanged Man': '2/2b/RWS_Tarot_12_Hanged_Man.jpg/200px-RWS_Tarot_12_Hanged_Man.jpg',
-            'Death': 'd/d7/RWS_Tarot_13_Death.jpg/200px-RWS_Tarot_13_Death.jpg',
-            'Temperance': 'f/f8/RWS_Tarot_14_Temperance.jpg/200px-RWS_Tarot_14_Temperance.jpg',
-            'The Devil': '5/55/RWS_Tarot_15_Devil.jpg/200px-RWS_Tarot_15_Devil.jpg',
-            'The Tower': '5/53/RWS_Tarot_16_Tower.jpg/200px-RWS_Tarot_16_Tower.jpg',
-            'The Star': 'd/db/RWS_Tarot_17_Star.jpg/200px-RWS_Tarot_17_Star.jpg',
-            'The Moon': '7/7f/RWS_Tarot_18_Moon.jpg/200px-RWS_Tarot_18_Moon.jpg',
-            'The Sun': '1/17/RWS_Tarot_19_Sun.jpg/200px-RWS_Tarot_19_Sun.jpg',
-            'Judgement': 'd/dd/RWS_Tarot_20_Judgement.jpg/200px-RWS_Tarot_20_Judgement.jpg',
-            'The World': 'f/ff/RWS_Tarot_21_World.jpg/200px-RWS_Tarot_21_World.jpg'
+            'The Fool': 'RWS_Tarot_00_Fool.jpg',
+            'The Magician': 'RWS_Tarot_01_Magician.jpg',
+            'The High Priestess': 'RWS_Tarot_02_High_Priestess.jpg',
+            'The Empress': 'RWS_Tarot_03_Empress.jpg',
+            'The Emperor': 'RWS_Tarot_04_Emperor.jpg',
+            'The Hierophant': 'RWS_Tarot_05_Hierophant.jpg',
+            'The Lovers': 'RWS_Tarot_06_Lovers.jpg',
+            'The Chariot': 'RWS_Tarot_07_Chariot.jpg',
+            'Strength': 'RWS_Tarot_08_Strength.jpg',
+            'The Hermit': 'RWS_Tarot_09_Hermit.jpg',
+            'Wheel of Fortune': 'RWS_Tarot_10_Wheel_of_Fortune.jpg',
+            'Justice': 'RWS_Tarot_11_Justice.jpg',
+            'The Hanged Man': 'RWS_Tarot_12_Hanged_Man.jpg',
+            'Death': 'RWS_Tarot_13_Death.jpg',
+            'Temperance': 'RWS_Tarot_14_Temperance.jpg',
+            'The Devil': 'RWS_Tarot_15_Devil.jpg',
+            'The Tower': 'RWS_Tarot_16_Tower.jpg',
+            'The Star': 'RWS_Tarot_17_Star.jpg',
+            'The Moon': 'RWS_Tarot_18_Moon.jpg',
+            'The Sun': 'RWS_Tarot_19_Sun.jpg',
+            'Judgement': 'RWS_Tarot_20_Judgement.jpg',
+            'The World': 'RWS_Tarot_21_World.jpg'
         };
 
-        if (majorMap[cardName]) return majorMap[cardName];
+        if (majorMap[cleanName]) return majorMap[cleanName];
 
-        // Minor Arcana: Try pattern "Suit_NN.jpg"
-        const suitMap = { 'Wands': 'Wands', 'Cups': 'Cups', 'Swords': 'Swords', 'Pentacles': 'Pents' };
-        const rankMap = {
-            'Ace': '01', 'Two': '02', 'Three': '03', 'Four': '04', 'Five': '05',
-            'Six': '06', 'Seven': '07', 'Eight': '08', 'Nine': '09', 'Ten': '10',
-            'Page': '11', 'Knight': '12', 'Queen': '13', 'King': '14'
-        };
-
-        for (const [suit, suitCode] of Object.entries(suitMap)) {
-            for (const [rank, num] of Object.entries(rankMap)) {
-                if (cardName.includes(rank) && cardName.includes(suit)) {
-                    return null; // Wikimedia minor arcana paths are inconsistent, skip
+        const suitMap = { 'Wands': 'Wands', 'Cups': 'Cups', 'Swords': 'Swords', 'Pentacles': 'Pentacles' };
+        for (const [suit, suitName] of Object.entries(suitMap)) {
+            if (cleanName.includes(suit)) {
+                // Return generic Wikipedia file format: Tarot_Nine_of_Wands.jpg
+                const rankMatch = cleanName.match(/^(Ace|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten|Page|Knight|Queen|King)/i);
+                if (rankMatch) {
+                    return `Tarot_${rankMatch[1]}_of_${suitName}.jpg`;
                 }
             }
         }

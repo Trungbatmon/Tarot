@@ -13,16 +13,18 @@ const AIService = {
     // Prompts (Domain specific)
     // Prompts (Domain specific)
     PROMPTS: {
-        SUGGEST_DECK_CARDS: `You are a professional Tarot expert. Provide a comprehensive list of cards for the requested deck.
-Output ONLY a valid JSON array of objects, with NO markdown formatting, NO code blocks, and NO other text before or after.
-Format required:
-[
-  { 
-    "name": "Card Name in English", 
-    "suit": "Wands/Cups/Swords/Pentacles (or null for non-tarot)", 
-    "arcana": "major/minor/extra (or null for non-tarot)"
-  }
-]
+        SUGGEST_DECK_CARDS: `You are a professional Tarot expert. Provide a comprehensive list of all cards for the requested deck.
+Output ONLY a valid JSON array of objects, with NO markdown formatting.
+Format required for each card:
+{ 
+  "name": "Card Name in English", 
+  "suit": "Wands/Cups/Swords/Pentacles (or null for non-tarot)", 
+  "arcana": "major/minor/extra (or null for non-tarot)",
+  "nameVi": "Vietnamese Name",
+  "keywordsVi": ["keyword1", "keyword2", "keyword3"],
+  "detailsVi": "Vietnamese summary of upright meaning (min 2 sentences)",
+  "reversedDetailsVi": "Vietnamese summary of reversed meaning (min 2 sentences)"
+}
 Deck requested: {deckName}
 Category: {category}`,
 

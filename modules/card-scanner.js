@@ -37,14 +37,14 @@ const CardScanner = {
 
                 <div class="grid-2 gap-md" id="scannerActionButtons">
                     <!-- Use standard input file type=file accept=image/* capture="environment" for best mobile compatibility -->
-                    <button id="btnCapturePhoto" class="btn btn-primary w-full relative">
+                    <label id="btnCapturePhoto" class="btn btn-primary w-full relative">
                         <span class="icon">📷</span> Chụp ảnh
                         <input type="file" id="scannerFileInput" accept="image/*" capture="environment" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                    </button>
-                    <button id="btnUploadGallery" class="btn btn-secondary w-full relative">
+                    </label>
+                    <label id="btnUploadGallery" class="btn btn-secondary w-full relative">
                         <span class="icon">🖼️</span> Chọn ngẫu nhiên (Thư viện)
                         <input type="file" id="scannerGalleryInput" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                    </button>
+                    </label>
                 </div>
                 
                 <div id="scannerProcessOptions" class="mt-lg" style="display: none;">
