@@ -509,11 +509,11 @@ const DeckManager = {
                 const frontStyle = frotImgUrl ? `background-image: url('${frotImgUrl}'); background-size: cover;` : '';
                 
                 cardsHtml += `
-                    <div class="tarot-card-scene" data-cardid="${card.id}" style="cursor:pointer;" class="btn-edit-card">
+                    <div class="tarot-card-scene ${card.image || card.imageUrl ? 'card-has-image' : ''}" data-cardid="${card.id}" style="cursor:pointer;">
                         <div class="tarot-card no-animation">
                             <div class="tarot-card-face tarot-card-front" style="${frontStyle}">
                                 ${!frotImgUrl ? `<div class="card-back-placeholder"><span style="font-size: 0.5em">${card.number}</span></div>` : ''}
-                                <div class="tarot-card-name truncate" style="padding:4px 8px;">${this._sanitize(card.name)}</div>
+                                <div class="tarot-card-name">${this._sanitize(card.name)}</div>
                             </div>
                         </div>
                     </div>

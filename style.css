@@ -1389,3 +1389,150 @@ input, textarea, select {
         border-right: 1px solid var(--bg-glass-border);
     }
 }
+
+/* ==========================================
+   Tarot Card Components
+   ========================================== */
+
+/* Auto-fit grid for card listing */
+.grid-auto {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: var(--space-md);
+}
+
+@media (min-width: 768px) {
+    .grid-auto {
+        grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    }
+}
+
+/* Card scene - the 3D perspective wrapper */
+.tarot-card-scene {
+    perspective: 600px;
+    width: 100%;
+    aspect-ratio: 2/3;
+    cursor: pointer;
+}
+
+/* The card itself */
+.tarot-card {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.6s ease;
+    border-radius: var(--radius-md);
+}
+
+.tarot-card.no-animation {
+    transition: none;
+}
+
+/* Card faces */
+.tarot-card-face {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 1px solid rgba(212, 165, 116, 0.2);
+    background-color: rgba(18, 8, 31, 0.8);
+    background-size: cover;
+    background-position: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+.tarot-card-face:hover {
+    border-color: var(--gold);
+    box-shadow: 0 0 12px rgba(212, 165, 116, 0.3);
+}
+
+.tarot-card-front {
+    z-index: 2;
+}
+
+.tarot-card-back {
+    transform: rotateY(180deg);
+}
+
+/* Placeholder when no image */
+.card-back-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    font-size: 2em;
+    color: var(--gold);
+    opacity: 0.4;
+    background: linear-gradient(135deg, rgba(212, 165, 116, 0.08) 0%, rgba(124, 58, 237, 0.08) 100%);
+}
+
+/* Card name at bottom */
+.tarot-card-name {
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+    color: var(--text-primary);
+    font-size: 0.65em;
+    padding: 16px 6px 6px;
+    text-align: center;
+    line-height: 1.2;
+    font-weight: 500;
+}
+
+/* Card image indicator */
+.card-has-image .tarot-card-face {
+    border-color: rgba(16, 185, 129, 0.4);
+}
+
+/* Progress bar */
+.progress-bar {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), var(--accent-primary));
+    border-radius: 3px;
+    transition: width 0.4s ease;
+}
+
+/* Badge for default deck */
+.badge-default {
+    background: var(--gold);
+    color: var(--bg-primary);
+    font-weight: 600;
+}
+
+/* Scanner preview */
+.max-h-64 {
+    max-height: 16rem;
+}
+
+.object-contain {
+    object-fit: contain;
+}
+
+.shadow-gold {
+    box-shadow: 0 4px 20px rgba(212, 165, 116, 0.3);
+}
+
+.mx-auto {
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* Flex wrap */
+.flex-wrap {
+    flex-wrap: wrap;
+}
+
+.flex-shrink-0 {
+    flex-shrink: 0;
+}
