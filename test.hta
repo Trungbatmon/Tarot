@@ -1,0 +1,21 @@
+<html>
+<head>
+    <HTA:APPLICATION ID="oHTA" APPLICATIONNAME="SyntaxChecker" WINDOWSTATE="minimize" />
+    <script>
+        try {
+            var fso = new ActiveXObject("Scripting.FileSystemObject");
+            var f = fso.OpenTextFile("modules\\\\deck-manager.js", 1);
+            var content = f.ReadAll();
+            f.Close();
+            // remove export statements as they are ES modules
+            content = content.replace(/export /g, '');
+            eval(content);
+            fso.OpenTextFile("syntax_result.txt", 2, true).Write("OK");
+        } catch(e) {
+            fso.OpenTextFile("syntax_result.txt", 2, true).Write(e.name + ": " + e.message + " at line " + (e.line || 'unknown'));
+        }
+        window.close();
+    </script>
+</head>
+<body></body>
+</html>
