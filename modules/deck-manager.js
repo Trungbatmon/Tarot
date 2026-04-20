@@ -802,6 +802,7 @@ const DeckManager = {
                             .replace(/['']/g, "'");
 
                         // Try multiple public sources
+                        const sources = [
                             `https://upload.wikimedia.org/wikipedia/commons/thumb/${this._getWikiPath(card.name)}`,
                             // Sacred Texts archive
                             `https://www.sacred-texts.com/tarot/pkt/img/${this._getSacredTextPath(card.name)}`

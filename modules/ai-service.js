@@ -84,21 +84,41 @@ Raw Text Block:
      * Route call to configured AI provider
      */
     async _callAI(prompt, fallbackGeminiModel = 'gemini-2.0-flash') {
-        if (this.isOpenAIAvailable()) {
-            try {
-                return await this._callOpenAI(prompt);
-            } catch (err) {
-                console.warn("OpenAI call failed: ", err);
-                if (this.isGeminiAvailable()) {
-                    console.warn("Falling back to Gemini...");
-                    return await this._callGemini(prompt, fallbackGeminiModel);
-                }
-                throw err;
-            }
-        } 
+        const defaultProvider = App.settings.defaultAiProvider || 'gemini';
         
-        if (this.isGeminiAvailable()) {
-            return await this._callGemini(prompt, fallbackGeminiModel);
+        if (defaultProvider === 'openai') {
+            if (this.isOpenAIAvailable()) {
+                try {
+                    return await this._callOpenAI(prompt);
+                } catch (err) {
+                    console.warn("OpenAI call failed: ", err);
+                    if (this.isGeminiAvailable()) {
+                        console.warn("Falling back to Gemini...");
+                        return await this._callGemini(prompt, fallbackGeminiModel);
+                    }
+                    throw err;
+                }
+            } else if (this.isGeminiAvailable()) {
+                console.warn("OpenAI is preferred but not configured. Falling back to Gemini...");
+                return await this._callGemini(prompt, fallbackGeminiModel);
+            }
+        } else {
+            // Default to Gemini
+            if (this.isGeminiAvailable()) {
+                try {
+                    return await this._callGemini(prompt, fallbackGeminiModel);
+                } catch (err) {
+                    console.warn("Gemini call failed: ", err);
+                    if (this.isOpenAIAvailable()) {
+                        console.warn("Falling back to OpenAI...");
+                        return await this._callOpenAI(prompt);
+                    }
+                    throw err;
+                }
+            } else if (this.isOpenAIAvailable()) {
+                console.warn("Gemini is preferred but not configured. Falling back to OpenAI...");
+                return await this._callOpenAI(prompt);
+            }
         }
 
         throw new Error("Vui lòng cấu hình API Key (Gemini hoặc OpenAI) trong phần Cài đặt.");

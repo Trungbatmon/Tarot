@@ -31,9 +31,18 @@ const Settings = {
                     <h3 class="section-subtitle">
                         <span class="icon">🔑</span> ${App.t('settings.apiKeys')}
                     </h3>
+
+                    <div class="form-group mb-xl pb-md" style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <label class="form-label text-gold" style="font-size: 1.1em;">⭐ Nhà Cung Cấp AI Mặc Định</label>
+                        <p class="text-sm text-muted mb-md">Chọn AI nào sẽ được ưu tiên sử dụng làm mặc định cho toàn bộ ứng dụng.</p>
+                        <select id="defaultAiProvider" class="form-select mb-md">
+                            <option value="gemini" ${settings.defaultAiProvider === 'gemini' || !settings.defaultAiProvider ? 'selected' : ''}>Google Gemini</option>
+                            <option value="openai" ${settings.defaultAiProvider === 'openai' ? 'selected' : ''}>OpenAI / ChatGPT</option>
+                        </select>
+                    </div>
                     
                     <div class="form-group mb-xl">
-                        <label class="form-label text-warning" style="font-size: 1.1em;">🪐 Google Gemini (API Mặc định)</label>
+                        <label class="form-label text-warning" style="font-size: 1.1em;">🪐 Google Gemini</label>
                         <p class="text-sm text-muted mb-md">Tác vụ chính: Dịch nghĩa lá bài, Gợi ý danh sách, Đọc Companion Book, Giải mã Tarot.</p>
                         
                         <label class="form-label text-xs" for="geminiApiKey">API Key</label>
@@ -245,6 +254,17 @@ const Settings = {
         bindInput('cloudinaryPreset', 'cloudinaryUploadPreset');
         bindInput('dropboxAppKey', 'dropboxAppKey');
         bindInput('gdriveClientId', 'gdriveClientId');
+
+        // Default AI Provider
+        const defaultProviderSelect = document.getElementById('defaultAiProvider');
+        if (defaultProviderSelect) {
+            defaultProviderSelect.addEventListener('change', async (e) => {
+                const val = e.target.value;
+                App.settings.defaultAiProvider = val;
+                await Store.setSetting('defaultAiProvider', val);
+                Toast.success(`Đã đổi AI mặc định thành ${val === 'gemini' ? 'Gemini' : 'OpenAI'}`);
+            });
+        }
 
         // --- Gemini: Save Key + Model ---
         document.getElementById('btnSaveGemini')?.addEventListener('click', async () => {
