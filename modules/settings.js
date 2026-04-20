@@ -489,6 +489,10 @@ const Settings = {
             try {
                 Loading.show("Exporting data...");
                 const data = await Store.exportAll(false); // don't include image Blobs for JSON
+                
+                // Add warning to exported JSON as requested by RULES.md
+                data._warning = "This backup file contains your API keys (if set). Do not share this file publicly.";
+                
                 const str = JSON.stringify(data, null, 2);
                 
                 const blob = new Blob([str], { type: 'application/json' });
@@ -507,6 +511,62 @@ const Settings = {
             } finally {
                 Loading.hide();
             }
+        document.getElementById('btnImport')?.addEventListener('click', () => {
+            // Remove existing hidden input if any
+            let oldInput = document.getElementById('hiddenImportInput');
+            if (oldInput) oldInput.remove();
+
+            const input = document.createElement('input');
+            input.id = 'hiddenImportInput';
+            input.type = 'file';
+            input.accept = '.json,application/json';
+            input.style.display = 'none';
+            document.body.appendChild(input);
+
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) {
+                    input.remove();
+                    return;
+                }
+
+                const yes = await Modal.confirm("Cảnh báo", "Việc import sẽ GHI ĐÈ hoặc THÊM MỚI dữ liệu hiện tại. Bạn có chắc chắn muốn tiếp tục?");
+                if (!yes) {
+                    input.remove();
+                    return;
+                }
+
+                try {
+                    Loading.show("Đang import dữ liệu...");
+                    
+                    // Use FileReader for better compatibility
+                    const text = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = e => resolve(e.target.result);
+                        reader.onerror = e => reject(e);
+                        reader.readAsText(file);
+                    });
+
+                    const data = JSON.parse(text);
+                    await Store.importAll(data);
+                    
+                    if (data.settings) {
+                        App.settings = await Store.getAllSettings();
+                    }
+                    
+                    Toast.success("Import thành công! Đang tải lại...");
+                    setTimeout(() => window.location.reload(), 1500);
+                } catch (err) {
+                    console.error("Import error:", err);
+                    Toast.error("File không hợp lệ hoặc lỗi: " + err.message);
+                } finally {
+                    Loading.hide();
+                    input.remove();
+                }
+            };
+            
+            // Trigger the click synchronously to preserve user gesture
+            input.click();
         });
 
         document.getElementById('btnClearData')?.addEventListener('click', async () => {
