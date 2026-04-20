@@ -29,6 +29,27 @@ const CardReader = {
         this._renderMainView();
     },
 
+    /**
+     * Start a draw session directly with a specific spread
+     * @param {string} spreadId 
+     */
+    async openWithSpread(spreadId) {
+        this._state.currentView = 'setup';
+        await this._loadData();
+
+        const spreadToSelect = this._state.spreads.find(s => s.id === spreadId);
+        if (spreadToSelect) {
+            this._state.selectedSpread = spreadToSelect;
+        }
+
+        // Switch active tab visually
+        if (typeof App !== 'undefined' && App.navigateTo) {
+            App.navigateTo('draw');
+        } else {
+            this.render();
+        }
+    },
+
     async _loadData() {
         this._state.decks = await Store.getAll(STORES.DECKS);
         this._state.spreads = await Store.getAll(STORES.SPREADS);
@@ -206,25 +227,27 @@ const CardReader = {
             const disableFlipCss = !App.settings.cardFlipEnabled; // If flip is disabled, show front directly if drawn
             
             // CSS states
-            const flippedClass = item.flipped || disableFlipCss ? 'is-flipped' : '';
+            const flippedClass = item.flipped || disableFlipCss ? 'flipped' : '';
             const reversedTransform = item.reversed ? 'rotateZ(180deg)' : '';
 
             // If flip animation is disabled globally, just show the card without the 3D wrapper physics if needed
             // But preserving structure is better, we just toggle the classes immediately
             
             cardsHtml += `
-                <div class="tarot-card-scene" data-index="${index}" style="margin: 0 auto; min-height: 250px;">
-                    <div class="text-gold text-center mb-sm font-bold text-sm tracking-wider" style="opacity: 0.8;">
+                <div class="tarot-card-wrapper" style="margin: 0 auto; width: 100%; max-width: 260px; min-width: 120px; display: flex; flex-direction: column; align-items: center;">
+                    <div class="text-gold text-center mb-sm font-bold text-sm tracking-wider" style="opacity: 0.8; width: 100%;">
                         ${this._sanitize(item.position.name)}
                     </div>
-                    <div class="tarot-card ${animClass} ${flippedClass}">
-                        <div class="tarot-card-face tarot-card-back" style="${backStyle}">
-                            ${!backImgUrl ? '<div class="card-back-placeholder">🔮</div>' : ''}
-                        </div>
-                        <div class="tarot-card-face tarot-card-front" style="${frontStyle}; transform: rotateY(180deg) ${reversedTransform};">
-                            ${!frontImgUrl ? `<div class="card-back-placeholder"><span style="font-size: 0.5em">${c.number}</span></div>` : ''}
-                            <div class="tarot-card-name truncate ${item.reversed ? 'text-danger' : 'text-gold'}" style="padding:4px 8px; ${item.reversed ? 'transform: rotateZ(180deg); bottom: auto; top: 0; border-radius: 6px 6px 0 0; background: rgba(0,0,0,0.85);' : ''}">
-                                ${this._sanitize(c.nameVi || c.name)} ${item.reversed ? '(Ngược)' : ''}
+                    <div class="tarot-card-scene" data-index="${index}" style="width: 100%;">
+                        <div class="tarot-card ${animClass} ${flippedClass}">
+                            <div class="tarot-card-face tarot-card-back" style="${backStyle}">
+                                ${!backImgUrl ? '<div class="card-back-placeholder" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-size:3em; background: rgba(0,0,0,0.5);">🔮</div>' : ''}
+                            </div>
+                            <div class="tarot-card-face tarot-card-front" style="${frontStyle}; transform: rotateY(180deg) ${reversedTransform};">
+                                ${!frontImgUrl ? `<div class="card-back-placeholder" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.5);"><span style="font-size: 2em">${c.number}</span></div>` : ''}
+                                <div class="tarot-card-name truncate ${item.reversed ? 'text-danger' : 'text-gold'}" style="padding:4px 8px; ${item.reversed ? 'transform: rotateZ(180deg); bottom: auto; top: 0; border-radius: 6px 6px 0 0; background: rgba(0,0,0,0.85);' : ''}">
+                                    ${this._sanitize(c.nameVi || c.name)} ${item.reversed ? '(Ngược)' : ''}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -312,7 +335,7 @@ const CardReader = {
                     // Trigger reflow/re-render to show animation
                     if (App.settings.animationsEnabled) {
                         const internalCard = e.currentTarget.querySelector('.tarot-card');
-                        internalCard.classList.add('is-flipped');
+                        internalCard.classList.add('flipped');
                         
                         // Check if all flipped to reveal save button
                         const allFlipped = this._state.drawnCards.every(c => c.flipped);

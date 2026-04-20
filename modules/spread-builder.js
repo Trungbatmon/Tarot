@@ -118,12 +118,13 @@ const SpreadBuilder = {
                         Gồm: ${spread.positions.length} vị trí (lá bài)
                     </div>
                     
+                    <div class="flex gap-sm mt-md items-center">
+                        <button class="btn btn-primary btn-sm btn-use-spread" data-id="${spread.id}">▶ Bắt đầu rút bài</button>
                     ${!spread.isPreset ? `
-                        <div class="flex gap-sm mt-md">
-                            <button class="btn btn-secondary btn-sm" onclick="Toast.info('Chức năng Edit sẽ mở ở các phase sau')">Sửa</button>
-                            <button class="btn btn-danger btn-sm ml-auto btn-del-spread" data-id="${spread.id}">Xóa</button>
-                        </div>
+                        <button class="btn btn-secondary btn-sm" onclick="Toast.info('Chức năng Edit sẽ mở ở các phase sau')">Sửa</button>
+                        <button class="btn btn-danger btn-sm ml-auto btn-del-spread" data-id="${spread.id}">Xóa</button>
                     ` : ''}
+                    </div>
                 </div>
             `).join('');
         };
@@ -170,9 +171,20 @@ const SpreadBuilder = {
             this._renderMainView();
         });
 
+        document.querySelectorAll('.btn-use-spread').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const spreadId = e.currentTarget.dataset.id;
+                if (typeof CardReader !== 'undefined') {
+                    await CardReader.openWithSpread(spreadId);
+                } else {
+                    Toast.error("CardReader module is missing.");
+                }
+            });
+        });
+
         document.querySelectorAll('.btn-del-spread').forEach(btn => {
             btn.addEventListener('click', async (e) => {
-                const id = e.target.dataset.id;
+                const id = e.currentTarget.dataset.id;
                 const yes = await Modal.confirm("Xóa Sơ đồ", "Bạn chắc chắn muốn xóa mẫu trải bài này?");
                 if (yes) {
                     await Store.delete(STORES.SPREADS, id);

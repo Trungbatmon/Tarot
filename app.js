@@ -619,10 +619,12 @@ const Modal = {
             });
 
             document.getElementById('confirmCancel').addEventListener('click', () => {
+                this._onClose = null; 
                 this.close();
                 resolve(false);
             });
             document.getElementById('confirmOk').addEventListener('click', () => {
+                this._onClose = null; 
                 this.close();
                 resolve(true);
             });
