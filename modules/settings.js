@@ -625,6 +625,8 @@ const Settings = {
             } finally {
                 Loading.hide();
             }
+        });
+
         document.getElementById('btnImport')?.addEventListener('click', () => {
             // Remove existing hidden input if any
             let oldInput = document.getElementById('hiddenImportInput');
