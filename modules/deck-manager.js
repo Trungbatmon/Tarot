@@ -83,6 +83,10 @@ const DeckManager = {
                     <span class="empty-state-icon">🃏</span>
                     <h3 class="empty-state-title">${App.t('deck.empty')}</h3>
                     <p class="empty-state-desc">${App.t('deck.emptyDesc')}</p>
+                    <div class="flex gap-sm justify-center mt-md">
+                        <button id="btnCreateDeckEmpty" class="btn btn-primary">+ ${App.t('common.add')} Bộ Bài</button>
+                        <button id="btnImportDeckEmpty" class="btn btn-secondary">📥 Nhập (Import)</button>
+                    </div>
                 </div>
             `;
         } else {
@@ -283,12 +287,12 @@ const DeckManager = {
         });
 
         // Create
-        document.getElementById('btnCreateDeckList')?.addEventListener('click', () => {
+        const handleCreate = () => {
             this._state.currentView = 'create';
             this._renderMainView();
-        });
+        };
 
-        document.getElementById('btnImportDeckList')?.addEventListener('click', () => {
+        const handleImport = () => {
             let oldInput = document.getElementById('hiddenImportInputMain');
             if (oldInput) oldInput.remove();
 
@@ -329,7 +333,15 @@ const DeckManager = {
                 }
             };
             input.click();
-        });
+        };
+
+        // Header buttons
+        document.getElementById('btnCreateDeckList')?.addEventListener('click', handleCreate);
+        document.getElementById('btnImportDeckList')?.addEventListener('click', handleImport);
+
+        // Empty state buttons
+        document.getElementById('btnCreateDeckEmpty')?.addEventListener('click', handleCreate);
+        document.getElementById('btnImportDeckEmpty')?.addEventListener('click', handleImport);
 
         // Open Deck
         document.querySelectorAll('.btn-open-deck').forEach(btn => {
@@ -391,8 +403,8 @@ const DeckManager = {
                 </p>
 
                 <div class="flex flex-col gap-md">
-                    ${!AIService.isGeminiAvailable() && this._state.activeCategory !== 'lenormand' ? 
-                        `<div class="badge badge-warning text-sm p-sm mb-sm block">⚠️ Bạn chưa nhập Gemini API Key trong phần Cài đặt. Nhập "Standard" cho bộ Tarot mặc định, hoặc tự tạo list thủ công.</div>` 
+                    ${!(typeof AIService.isAIAvailable === 'function' ? AIService.isAIAvailable() : AIService.isGeminiAvailable()) && this._state.activeCategory !== 'lenormand' ? 
+                        `<div class="badge badge-warning text-sm p-sm mb-sm block">⚠️ Bạn chưa cấu hình API Key trong Cài đặt (Gemini/OpenAI). Nhập "Standard" cho bộ Tarot mặc định, hoặc tự tạo list thủ công.</div>` 
                     : ''}
                     
                     <button id="btnAiSuggest" class="btn btn-primary w-full">

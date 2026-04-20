@@ -74,6 +74,72 @@ Raw Text Block:
     },
 
     /**
+     * Check if any AI provider is available
+     */
+    isAIAvailable() {
+        return this.isGeminiAvailable() || this.isOpenAIAvailable();
+    },
+
+    /**
+     * Route call to configured AI provider
+     */
+    async _callAI(prompt, fallbackGeminiModel = 'gemini-2.0-flash') {
+        if (this.isOpenAIAvailable()) {
+            try {
+                return await this._callOpenAI(prompt);
+            } catch (err) {
+                console.warn("OpenAI call failed: ", err);
+                if (this.isGeminiAvailable()) {
+                    console.warn("Falling back to Gemini...");
+                    return await this._callGemini(prompt, fallbackGeminiModel);
+                }
+                throw err;
+            }
+        } 
+        
+        if (this.isGeminiAvailable()) {
+            return await this._callGemini(prompt, fallbackGeminiModel);
+        }
+
+        throw new Error("Vui lòng cấu hình API Key (Gemini hoặc OpenAI) trong phần Cài đặt.");
+    },
+
+    async _callOpenAI(prompt) {
+        const apiKey = App.settings.openaiApiKey;
+        if (!apiKey) throw new Error("Missing OpenAI API Key");
+
+        const targetModel = App.settings.openaiModel || 'gpt-4o-mini';
+        
+        const payload = {
+            model: targetModel,
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.2
+        };
+
+        const response = await fetch(this.OPENAI_API_URL, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error?.message || `HTTP Error ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        if (!data.choices || data.choices.length === 0) {
+            throw new Error("No response generated.");
+        }
+
+        return data.choices[0].message.content;
+    },
+
+    /**
      * Test Gemini Connection (self-contained, no internal dependencies)
      */
     async testGemini() {
@@ -146,8 +212,8 @@ Raw Text Block:
             return this._getTarotStandardDeck();
         }
 
-        if (!this.isGeminiAvailable()) {
-            throw new Error("Vui lòng cấu hình Gemini API Key trong Cài đặt để sử dụng tính năng AI gợi ý.");
+        if (!this.isAIAvailable()) {
+            throw new Error("Vui lòng cấu hình API Key trong Cài đặt để sử dụng tính năng AI gợi ý.");
         }
 
         const prompt = this.PROMPTS.SUGGEST_DECK_CARDS
@@ -155,7 +221,7 @@ Raw Text Block:
             .replace('{category}', category);
 
         try {
-            const rawResponse = await this._callGemini(prompt, 'gemini-2.0-flash');
+            const rawResponse = await this._callAI(prompt, 'gemini-2.0-flash');
             
             // Extract JSON from response (handle potential markdown formatting)
             let jsonString = rawResponse;
@@ -185,8 +251,8 @@ Raw Text Block:
      * @returns {Promise<Object>} {nameVi, keywords, details, reversedDetails}
      */
     async generateCardDetails(deckName, cardName, referenceText = '') {
-        if (!this.isGeminiAvailable()) {
-            throw new Error("Vui lòng cấu hình Gemini API Key để tự động dịch và điền thông tin.");
+        if (!this.isAIAvailable()) {
+            throw new Error("Vui lòng cấu hình API Key để tự động dịch và điền thông tin.");
         }
 
         const prompt = this.PROMPTS.GENERATE_CARD_DETAILS
@@ -195,7 +261,7 @@ Raw Text Block:
             .replace('{referenceText}', referenceText ? referenceText.substring(0, 3000) : 'None'); // limit length to avoid massive tokens
 
         try {
-            const rawResponse = await this._callGemini(prompt, 'gemini-2.0-flash');
+            const rawResponse = await this._callAI(prompt, 'gemini-2.0-flash');
             
             let jsonString = rawResponse;
             const jsonMatch = rawResponse.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
@@ -219,8 +285,8 @@ Raw Text Block:
      * @returns {Promise<Object>} Map of cardName -> description text
      */
     async parseCompanionBulk(deckName, cardNames, rawText) {
-        if (!this.isGeminiAvailable()) {
-            throw new Error("Vui lòng cấu hình Gemini API Key.");
+        if (!this.isAIAvailable()) {
+            throw new Error("Vui lòng cấu hình API Key.");
         }
 
         const prompt = this.PROMPTS.PARSE_COMPANION_BULK
@@ -229,7 +295,7 @@ Raw Text Block:
             .replace('{rawText}', rawText.substring(0, 15000)); // limit 15k chars per chunk roughly
 
         try {
-            const rawResponse = await this._callGemini(prompt, 'gemini-2.0-flash');
+            const rawResponse = await this._callAI(prompt, 'gemini-2.0-flash');
             
             let jsonString = rawResponse;
             const jsonMatch = rawResponse.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
