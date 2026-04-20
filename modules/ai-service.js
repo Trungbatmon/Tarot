@@ -124,7 +124,7 @@ Raw Text Block:
         throw new Error("Vui lòng cấu hình API Key (Gemini hoặc OpenAI) trong phần Cài đặt.");
     },
 
-    async _callOpenAI(prompt) {
+    async _callOpenAI(prompt, retries = 2) {
         const apiKey = App.settings.openaiApiKey;
         if (!apiKey) throw new Error("Missing OpenAI API Key");
 
@@ -146,6 +146,11 @@ Raw Text Block:
         });
 
         if (!response.ok) {
+            if ((response.status === 429 || response.status === 503) && retries > 0) {
+                console.warn(`OpenAI limit/overload (HTTP ${response.status}). Retrying in 5s... (${retries} left)`);
+                await new Promise(r => setTimeout(r, 5000));
+                return this._callOpenAI(prompt, retries - 1);
+            }
             const errorData = await response.json().catch(() => ({}));
             throw new Error(errorData.error?.message || `HTTP Error ${response.status}`);
         }
@@ -380,9 +385,10 @@ Raw Text Block:
      * Call Google Gemini API
      * @param {string} prompt
      * @param {string} fallbackModel
+     * @param {number} retries
      * @returns {Promise<string>}
      */
-    async _callGemini(prompt, fallbackModel = 'gemini-2.0-flash') {
+    async _callGemini(prompt, fallbackModel = 'gemini-2.0-flash', retries = 3) {
         const apiKey = App.settings.geminiApiKey;
         if (!apiKey) throw new Error("Missing Gemini API Key");
 
@@ -405,6 +411,12 @@ Raw Text Block:
         });
 
         if (!response.ok) {
+            if ((response.status === 429 || response.status === 503) && retries > 0) {
+                const waitTime = (4 - retries) * 5000; // 5s, then 10s, then 15s
+                console.warn(`Gemini rate limited (HTTP ${response.status}). Retrying in ${waitTime}ms... (${retries} left)`);
+                await new Promise(r => setTimeout(r, waitTime));
+                return this._callGemini(prompt, fallbackModel, retries - 1);
+            }
             const errorData = await response.json().catch(() => ({}));
             throw new Error(errorData.error?.message || `HTTP Error ${response.status}`);
         }

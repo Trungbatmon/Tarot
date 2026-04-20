@@ -774,6 +774,7 @@ const DeckManager = {
                                 <button class="btn btn-secondary btn-sm" id="btnPasteBackImage" title="Dán ảnh từ clipboard">📋 Dán Mặt Sau</button>
                                 <button class="btn btn-primary btn-sm" id="btnImportCompanionDetail">Import Sách Hướng Dẫn</button>
                                 <button class="btn btn-secondary btn-sm" id="btnAutoFetchImages" title="Tự động tải hình từ web">🌐 Tải hình tự động</button>
+                                <button class="btn btn-secondary btn-sm" id="btnBulkAutoContext" title="Tự động dùng AI điền chi tiết cho các lá bài còn trống">✨ Tự động điền chi tiết</button>
                                 <button class="btn btn-secondary btn-icon" title="Scan từng lá qua Camera" id="btnBatchScan">📷</button>
                             </div>
                         </div>
@@ -925,34 +926,63 @@ const DeckManager = {
                             .replace(/\s+/g, '_')
                             .replace(/['']/g, "'");
 
-                        // Try multiple public sources
-                        const sources = [
-                            `https://upload.wikimedia.org/wikipedia/commons/thumb/${this._getWikiPath(card.name)}`,
-                            // Sacred Texts archive
-                            `https://www.sacred-texts.com/tarot/pkt/img/${this._getSacredTextPath(card.name)}`
-                        ];
-
                         let fetched = false;
-                        for (const imgUrl of sources) {
-                            if (!imgUrl) continue;
+                        const wikiFilename = this._getWikiPath(card.name);
+                        
+                        if (wikiFilename) {
                             try {
-                                const res = await fetch(imgUrl, { mode: 'cors' });
-                                if (res.ok) {
-                                    const blob = await res.blob();
-                                    if (blob.size > 1000) { // Sanity check: not an error page
-                                        card.image = new File([blob], `${slug}.jpg`, { type: blob.type });
-                                        card.imageUrl = imgUrl;
+                                const apiUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=File:${encodeURIComponent(wikiFilename)}&prop=imageinfo&iiprop=url&iiurlwidth=400&format=json&origin=*`;
+                                const apiRes = await fetch(apiUrl);
+                                if (apiRes.ok) {
+                                    const apiJson = await apiRes.json();
+                                    const pages = apiJson.query?.pages;
+                                    if (pages) {
+                                        const page = Object.values(pages)[0];
+                                        const imgUrl = page?.imageinfo?.[0]?.thumburl || page?.imageinfo?.[0]?.url;
+                                        
+                                        if (imgUrl) {
+                                            const imgRes = await fetch(imgUrl, { mode: 'cors' });
+                                            if (imgRes.ok) {
+                                                const blob = await imgRes.blob();
+                                                if (blob.size > 1000) {
+                                                    card.image = new File([blob], `${slug}.jpg`, { type: blob.type });
+                                                    card.imageUrl = imgUrl;
+                                                    card.imageDownloaded = true;
+                                                    await Store.set(STORES.CARDS, card);
+                                                    successCount++;
+                                                    fetched = true;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch (err) {
+                                console.warn("Lỗi tải hình từ Wiki:", err);
+                            }
+                        }
+
+                        if (!fetched) {
+                            // Fallback 1: Try AI generation if Wikipedia didn't work or file wasn't found
+                            try {
+                                const aiPrompt = `Tarot card ${card.name} Rider Waite Smith style classic tarot deck isolated high quality full color`;
+                                const aiUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(aiPrompt)}?width=420&height=700&nologo=true&seed=42`;
+                                const imgRes = await fetch(aiUrl);
+                                if (imgRes.ok) {
+                                    const blob = await imgRes.blob();
+                                    if (blob.size > 1000) {
+                                        card.image = new File([blob], `${slug}_ai.jpg`, { type: blob.type });
+                                        card.imageUrl = aiUrl;
                                         card.imageDownloaded = true;
                                         await Store.set(STORES.CARDS, card);
                                         successCount++;
                                         fetched = true;
-                                        break;
                                     }
                                 }
-                            } catch (fetchErr) {
-                                // silently continue to next source
+                            } catch (fallbackErr) {
+                                console.warn("Lỗi tải hình từ AI fallback:", fallbackErr);
                             }
                         }
+
                         if (!fetched) failCount++;
                     } catch (err) {
                         failCount++;
@@ -962,6 +992,45 @@ const DeckManager = {
                 Loading.hide();
                 Toast.success(`Hoàn tất! ✅ ${successCount} thành công, ❌ ${failCount} không tìm thấy.`);
                 this._renderDeckDetail(); // Refresh view
+            });
+
+            // --- Bulk Auto Context via AI ---
+            document.getElementById('btnBulkAutoContext')?.addEventListener('click', async () => {
+                const missingCards = cards.filter(c => !c.details && !c.reversedDetails);
+                if (missingCards.length === 0) {
+                    return Toast.info("Tất cả lá bài đã có đủ nội dung giải nghĩa!");
+                }
+                
+                const confirmed = confirm(`Sẽ tự động nhờ AI phân tích lại nội dung cho ${missingCards.length} lá bài.\nQuá trình này có thể mất vài phút. Bạn có muốn tiếp tục không?`);
+                if (!confirmed) return;
+
+                let successCount = 0;
+                let failCount = 0;
+                
+                for (let i = 0; i < missingCards.length; i++) {
+                    const card = missingCards[i];
+                    Loading.show(`AI đang phân tích (${i + 1}/${missingCards.length}): ${card.name}`);
+                    
+                    try {
+                        const result = await AIService.generateCardDetails(deck.name, card.name, card.companionText || '');
+                        
+                        card.nameVi = result.nameVi || card.nameVi;
+                        card.keywords = result.keywords && result.keywords.length ? result.keywords : card.keywords;
+                        card.details = result.details || card.details;
+                        card.reversedDetails = result.reversedDetails || card.reversedDetails;
+                        
+                        await Store.set(STORES.CARDS, card);
+                        await Store.addToSyncQueue('update', STORES.CARDS, card.id, card);
+                        successCount++;
+                    } catch (err) {
+                        console.error(`Lỗi giải nghĩa ${card.name}:`, err);
+                        failCount++;
+                    }
+                }
+                
+                Loading.hide();
+                Toast.success(`Hoàn tất AI! ✅ ${successCount} thành công, ❌ ${failCount} lỗi.`);
+                this._renderDeckDetail();
             });
 
             // --- Batch Scan via Camera ---
