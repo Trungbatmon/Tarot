@@ -21,6 +21,8 @@ const DeckManager = {
         this._container = document.getElementById('viewDecks');
         if (!this._container) return;
         
+        this._initGlobalPasteHandler();
+        
         await this._loadData();
         this._renderMainView();
     },
@@ -417,6 +419,19 @@ const DeckManager = {
                         <input type="number" id="manualCardCount" class="form-input" placeholder="Số lượng lá" min="1" max="150" value="${this._state.activeCategory === 'tarot' ? '78' : '36'}">
                         <button id="btnManualCreate" class="btn btn-secondary whitespace-nowrap">Tạo thủ công</button>
                     </div>
+
+                    <div class="divider-label">HOẶC</div>
+
+                    <div class="flex flex-col gap-sm">
+                        <textarea id="importText" class="form-textarea text-xs" rows="4" placeholder="Dán danh sách lá bài vào đây (mỗi lá 1 dòng) hoặc dán chuỗi JSON... Hoặc tải lên file .txt, .csv, .json"></textarea>
+                        <div class="flex gap-sm">
+                            <label class="btn btn-secondary flex-1 relative text-center">
+                                📁 Chọn File (.txt, .json)
+                                <input type="file" id="btnImportTextFile" accept=".txt,.csv,.json" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                            </label>
+                            <button id="btnImportText" class="btn btn-secondary flex-1">Tạo từ dữ liệu trên</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -502,6 +517,84 @@ const DeckManager = {
                 });
             }
             showPreview(cards);
+        });
+
+        // Import from File (.txt/.csv)
+        document.getElementById('btnImportTextFile')?.addEventListener('change', (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const text = event.target.result;
+                document.getElementById('importText').value = text;
+                Toast.success("Đã tải nội dung file, bấm 'Tạo từ danh sách trên' để tiếp tục!");
+            };
+            reader.onerror = () => Toast.error("Không thể đọc file.");
+            reader.readAsText(file);
+        });
+
+        // Import from Text (textarea)
+        document.getElementById('btnImportText')?.addEventListener('click', () => {
+            const textArea = document.getElementById('importText');
+            const rawText = textArea.value.trim();
+            
+            if (!rawText) {
+                return Toast.warning("Vui lòng nhập danh sách/JSON lá bài hoặc chọn file.");
+            }
+
+            // Try to parse as JSON first
+            try {
+                const parsed = JSON.parse(rawText);
+                if (Array.isArray(parsed)) {
+                    if (parsed.length > 300) return Toast.warning("Danh sách quá dài (tối đa 300 lá).");
+                    
+                    const cards = parsed.map((item, i) => {
+                        if (typeof item === 'string') return { name: item, suit: null, arcana: null };
+                        return {
+                            name: item.name || `Card ${i + 1}`,
+                            nameVi: item.nameVi || '',
+                            suit: item.suit || null,
+                            arcana: item.arcana || null,
+                            keywordsVi: item.keywordsVi || [],
+                            detailsVi: item.detailsVi || '',
+                            reversedDetailsVi: item.reversedDetailsVi || ''
+                        };
+                    });
+                    
+                    showPreview(cards);
+                    Toast.success(`Đã nhận diện đủ ${cards.length} lá bài qua định dạng JSON.`);
+                    return; // Exit function successfully
+                }
+            } catch (err) {
+                // Not a JSON Array, silently fallback to line-by-line parsing
+            }
+
+            // Fallback: Parse line by line
+            const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            
+            if (lines.length === 0) {
+                return Toast.warning("Không tìm thấy tên bài hợp lệ từ nội dung văn bản.");
+            }
+
+            if (lines.length > 300) {
+                return Toast.warning("Danh sách quá dài (tối đa 300 lá).");
+            }
+
+            const cards = lines.map(line => {
+                // If CSV format like "name,suit,arcana", simple parse
+                let name = line;
+                if (line.includes(',') && line.split(',').length >= 2) {
+                    name = line.split(',')[0].trim();
+                }
+                return {
+                    name: name,
+                    suit: null,
+                    arcana: null
+                };
+            });
+            showPreview(cards);
+            Toast.success(`Đã nhận diện được ${cards.length} lá bài.`);
         });
 
         // Final Save Process
@@ -678,6 +771,7 @@ const DeckManager = {
                                     Import Mặt Sau
                                     <input type="file" id="backImageFileInput" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
                                 </label>
+                                <button class="btn btn-secondary btn-sm" id="btnPasteBackImage" title="Dán ảnh từ clipboard">📋 Dán Mặt Sau</button>
                                 <button class="btn btn-primary btn-sm" id="btnImportCompanionDetail">Import Sách Hướng Dẫn</button>
                                 <button class="btn btn-secondary btn-sm" id="btnAutoFetchImages" title="Tự động tải hình từ web">🌐 Tải hình tự động</button>
                                 <button class="btn btn-secondary btn-icon" title="Scan từng lá qua Camera" id="btnBatchScan">📷</button>
@@ -766,6 +860,36 @@ const DeckManager = {
                     Toast.error("Lỗi lưu mặt sau: " + err.message);
                 } finally {
                     Loading.hide();
+                }
+            });
+
+            // --- Paste Back Image ---
+            document.getElementById('btnPasteBackImage')?.addEventListener('click', async () => {
+                try {
+                    const clipItems = await navigator.clipboard.read();
+                    for (const item of clipItems) {
+                        const imageType = item.types.find(t => t.startsWith('image/'));
+                        if (imageType) {
+                            const blob = await item.getType(imageType);
+                            const file = new File([blob], 'pasted_back_image.png', { type: imageType });
+                            
+                            Loading.show("Đang lưu mặt sau...");
+                            deck.backImage = file;
+                            deck.updatedAt = Date.now();
+                            await Store.set(STORES.DECKS, deck);
+                            await Store.addToSyncQueue('update', STORES.DECKS, deck.id, deck);
+                            
+                            const idx = this._state.decks.findIndex(d => d.id === deck.id);
+                            if (idx >= 0) this._state.decks[idx] = deck;
+                            
+                            Toast.success("Đã dán mặt sau thành công!");
+                            this._renderDeckDetail();
+                            return;
+                        }
+                    }
+                    Toast.warning("Clipboard không chứa hình ảnh. Hãy copy ảnh trước rồi bấm Dán.");
+                } catch (err) {
+                    Toast.error("Không thể đọc clipboard. Vui lòng bấm Cho phép quyền dán hoặc thử Nhấn giữ rồi Dán ảnh.");
                 }
             });
 
@@ -1243,6 +1367,74 @@ const DeckManager = {
         const div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML;
+    },
+
+    // ==========================================
+    // GLOBAL PASTE HANDLER
+    // ==========================================
+
+    _initGlobalPasteHandler() {
+        if (this._hasGlobalPasteBound) return;
+        this._hasGlobalPasteBound = true;
+
+        window.addEventListener('paste', async (e) => {
+            // Check if we are in a state where we accept images
+            if (this._state.currentView !== 'detail' && this._state.currentView !== 'edit-card') return;
+            
+            const clipboardData = e.clipboardData || window.clipboardData;
+            if (!clipboardData) return;
+
+            const items = clipboardData.items;
+            let imageFile = null;
+            
+            for (const item of items) {
+                if (item.type.indexOf('image/') === 0) {
+                    imageFile = item.getAsFile();
+                    break;
+                }
+            }
+
+            if (!imageFile) return;
+
+            // Optional: prevent default so the browser doesn't try assigning it to a stray input
+            e.preventDefault();
+
+            if (this._state.currentView === 'edit-card' && this._state.editingCardId) {
+                // Save to card
+                try {
+                    Loading.show("Đang lưu ảnh dán tự động...");
+                    const card = await Store.get(STORES.CARDS, this._state.editingCardId);
+                    if (!card) return;
+                    card.image = imageFile;
+                    card.imageUrl = null;
+                    card.imageDownloaded = true;
+                    await Store.set(STORES.CARDS, card);
+                    Toast.success("Đã lưu hình ảnh lá bài!");
+                    this._renderCardEditor(); 
+                } catch (err) {
+                    Toast.error("Lỗi khi dán hình: " + err.message);
+                } finally {
+                    Loading.hide();
+                }
+            } else if (this._state.currentView === 'detail' && this._state.selectedDeckId) {
+                // Save to deck back images
+                try {
+                    Loading.show("Đang lưu mặt sau...");
+                    const deck = this._state.decks.find(d => d.id === this._state.selectedDeckId);
+                    if (!deck) return;
+                    deck.backImage = imageFile;
+                    deck.updatedAt = Date.now();
+                    await Store.set(STORES.DECKS, deck);
+                    await Store.addToSyncQueue('update', STORES.DECKS, deck.id, deck);
+                    Toast.success("Đã dán mặt sau!");
+                    this._renderDeckDetail();
+                } catch (err) {
+                    Toast.error("Lỗi khi dán mặt sau: " + err.message);
+                } finally {
+                    Loading.hide();
+                }
+            }
+        });
     }
 };
 
