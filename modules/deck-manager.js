@@ -141,6 +141,7 @@ const DeckManager = {
                         <button class="btn btn-sm ${this._state.deckViewMode === 'grid-sm' ? 'btn-primary' : 'btn-secondary'}" data-mode="grid-sm" style="padding: 4px; min-height: 28px;" title="Ảnh Nhỏ">▦</button>
                         <button class="btn btn-sm ${this._state.deckViewMode === 'list' ? 'btn-primary' : 'btn-secondary'}" data-mode="list" style="padding: 4px; min-height: 28px;" title="Danh Sách">📄</button>
                     </div>
+                    <button id="btnImportDeckList" class="btn btn-secondary btn-sm" title="Nhập file bộ bài/backup JSON">📥</button>
                     <button id="btnCreateDeckList" class="btn btn-primary btn-sm">+ ${App.t('common.add')}</button>
                 </div>
             </div>
@@ -285,6 +286,49 @@ const DeckManager = {
         document.getElementById('btnCreateDeckList')?.addEventListener('click', () => {
             this._state.currentView = 'create';
             this._renderMainView();
+        });
+
+        document.getElementById('btnImportDeckList')?.addEventListener('click', () => {
+            let oldInput = document.getElementById('hiddenImportInputMain');
+            if (oldInput) oldInput.remove();
+
+            const input = document.createElement('input');
+            input.id = 'hiddenImportInputMain';
+            input.type = 'file';
+            input.accept = '.json,application/json';
+            input.style.display = 'none';
+            document.body.appendChild(input);
+
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) { input.remove(); return; }
+                const yes = await Modal.confirm("Nhập bộ bài", "Dữ liệu mới sẽ được ghi đè hoặc thêm vào (tuỳ ID). Bạn có tiếp tục?");
+                if (!yes) { input.remove(); return; }
+                
+                try {
+                    Loading.show("Đang import...");
+                    const text = await new Promise((res, rej) => {
+                        const reader = new FileReader();
+                        reader.onload = e => res(e.target.result);
+                        reader.onerror = e => rej(e);
+                        reader.readAsText(file);
+                    });
+                    const data = JSON.parse(text);
+                    await Store.importAll(data);
+                    
+                    if (data.settings) {
+                        App.settings = await Store.getAllSettings();
+                    }
+                    Toast.success("Nhập thành công! Đang tự động tải lại...");
+                    setTimeout(() => window.location.reload(), 1500);
+                } catch(err) {
+                    Toast.error("Lỗi dữ liệu: " + err.message);
+                } finally {
+                    Loading.hide();
+                    input.remove();
+                }
+            };
+            input.click();
         });
 
         // Open Deck

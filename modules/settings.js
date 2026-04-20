@@ -64,10 +64,19 @@ const Settings = {
                         <label class="form-label text-xs" for="openaiApiKey">API Key</label>
                         <input type="password" id="openaiApiKey" class="form-input mb-md" 
                             value="${settings.openaiApiKey || ''}" placeholder="sk-...">
+
+                        <label class="form-label text-xs" for="openaiModel">Model AI</label>
+                        <div class="flex gap-sm mb-md">
+                            <select id="openaiModel" class="form-select flex-1" style="font-family: monospace;">
+                                <option value="">-- Nhập Key rồi bấm Tải danh sách --</option>
+                            </select>
+                            <button class="btn btn-secondary btn-sm" id="btnLoadOpenAIModels" title="Tải danh sách model">🔄</button>
+                        </div>
+                        <p class="text-xs text-muted mb-md" id="openaiModelStatus">Model hiện tại: <strong>${settings.openaiModel || 'gpt-4o-mini'}</strong></p>
                             
                         <div class="flex gap-sm">
-                            <button class="btn btn-primary flex-1" id="btnSaveOpenAI">💾 Lưu Key</button>
-                            <button class="btn btn-secondary flex-1" id="btnTestOpenAI">🤖 Kiểm tra</button>
+                            <button class="btn btn-primary flex-1" id="btnSaveOpenAI">💾 Lưu Cấu hình</button>
+                            <button class="btn btn-secondary flex-1" id="btnTestOpenAI">🤖 Kiểm tra kết nối</button>
                         </div>
                     </div>
 
@@ -85,7 +94,10 @@ const Settings = {
                         <input type="text" id="cloudinaryPreset" class="form-input mb-md" 
                             value="${settings.cloudinaryUploadPreset || ''}" placeholder="VD: tarot_upload">
                             
-                        <button class="btn btn-primary w-full" id="btnSaveCloudinary">💾 Lưu Cloudinary</button>
+                        <div class="flex gap-sm">
+                            <button class="btn btn-primary flex-1" id="btnSaveCloudinary">💾 Lưu Cloudinary</button>
+                            <button class="btn btn-secondary flex-1" id="btnTestCloudinary">☁️ Kiểm tra upload</button>
+                        </div>
                     </div>
                 </div>
 
@@ -358,22 +370,85 @@ const Settings = {
         // --- OpenAI: Save Key ---
         document.getElementById('btnSaveOpenAI')?.addEventListener('click', async () => {
             const keyInput = document.getElementById('openaiApiKey');
+            const modelSelect = document.getElementById('openaiModel');
             const key = keyInput?.value.trim();
+            const model = modelSelect?.value;
+
             if (!key) return Toast.warning("Vui lòng nhập API Key.");
 
             App.settings.openaiApiKey = key;
             await Store.setSetting('openaiApiKey', key);
-            Toast.success("Đã lưu OpenAI API Key!");
+
+            if (model) {
+                App.settings.openaiModel = model;
+                await Store.setSetting('openaiModel', model);
+                document.getElementById('openaiModelStatus').innerHTML = 
+                    `Model hiện tại: <strong>${model}</strong>`;
+            }
+
+            Toast.success("Đã lưu cấu hình OpenAI!");
         });
 
-        // --- OpenAI: Test ---
-        document.getElementById('btnTestOpenAI')?.addEventListener('click', async () => {
+        // --- OpenAI: Load Models ---
+        document.getElementById('btnLoadOpenAIModels')?.addEventListener('click', async () => {
             const keyInput = document.getElementById('openaiApiKey');
             const key = keyInput?.value.trim();
             if (!key) return Toast.warning("Vui lòng nhập API Key trước.");
 
             try {
-                Loading.show("Đang kiểm tra OpenAI...");
+                Loading.show("Đang tải danh sách model OpenAI...");
+                const res = await fetch('https://api.openai.com/v1/models', {
+                    headers: { 'Authorization': `Bearer ${key}` }
+                });
+                
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.error?.message || `HTTP ${res.status}`);
+                }
+                
+                const data = await res.json();
+                // Filter models that are usually for chat completions
+                const models = (data.data || [])
+                    .filter(m => m.id.includes('gpt-') || m.id.includes('o1-') || m.id.includes('o3-'))
+                    .sort((a, b) => b.created - a.created);
+
+                const select = document.getElementById('openaiModel');
+                select.innerHTML = '';
+                
+                if (models.length === 0) {
+                    select.innerHTML = '<option value="">Không tìm thấy model chat nào</option>';
+                    Toast.warning("API Key hợp lệ nhưng không có model GPT.");
+                    return;
+                }
+
+                const currentModel = App.settings.openaiModel || 'gpt-4o-mini';
+                models.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m.id;
+                    opt.textContent = m.id;
+                    if (m.id === currentModel) opt.selected = true;
+                    select.appendChild(opt);
+                });
+
+                Toast.success(`Tìm thấy ${models.length} model GPT!`);
+            } catch (err) {
+                Toast.error("Lỗi tải model: " + err.message);
+            } finally {
+                Loading.hide();
+            }
+        });
+
+        // --- OpenAI: Test ---
+        document.getElementById('btnTestOpenAI')?.addEventListener('click', async () => {
+            const keyInput = document.getElementById('openaiApiKey');
+            const modelSelect = document.getElementById('openaiModel');
+            const key = keyInput?.value.trim();
+            const model = modelSelect?.value || App.settings.openaiModel || 'gpt-4o-mini';
+
+            if (!key) return Toast.warning("Vui lòng nhập API Key trước.");
+
+            try {
+                Loading.show(`Đang kiểm tra OpenAI (${model})...`);
                 const res = await fetch('https://api.openai.com/v1/chat/completions', {
                     method: 'POST',
                     headers: {
@@ -381,7 +456,7 @@ const Settings = {
                         'Authorization': `Bearer ${key}`
                     },
                     body: JSON.stringify({
-                        model: 'gpt-4o-mini',
+                        model: model,
                         messages: [{ role: 'user', content: 'Respond with OK' }],
                         max_tokens: 5
                     })
@@ -392,7 +467,7 @@ const Settings = {
                     throw new Error(err.error?.message || `HTTP ${res.status}`);
                 }
 
-                Toast.success("✅ OpenAI hoạt động tốt!");
+                Toast.success(`✅ OpenAI (${model}) hoạt động tốt!`);
             } catch (err) {
                 Toast.error("Lỗi OpenAI: " + err.message);
             } finally {
@@ -411,6 +486,45 @@ const Settings = {
             await Store.setSetting('cloudinaryUploadPreset', preset);
 
             Toast.success("Đã lưu cấu hình Cloudinary!");
+        });
+
+        // --- Cloudinary: Test ---
+        document.getElementById('btnTestCloudinary')?.addEventListener('click', async () => {
+            const name = document.getElementById('cloudinaryName')?.value.trim() || App.settings.cloudinaryCloudName;
+            const preset = document.getElementById('cloudinaryPreset')?.value.trim() || App.settings.cloudinaryUploadPreset;
+
+            if (!name || !preset) {
+                return Toast.warning("Vui lòng nhập Cloud Name và Upload Preset trước.");
+            }
+
+            try {
+                Loading.show("Đang kiểm tra Cloudinary...");
+                const formData = new FormData();
+                
+                // 1x1 transparent PNG
+                const base64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVQYV2NgYAAAAAMAAWgmWQ0AAAAASUVORK5CYII=";
+                const blob = await (await fetch(base64)).blob();
+                
+                formData.append('file', blob, 'test.png');
+                formData.append('upload_preset', preset);
+
+                const uploadUrl = `https://api.cloudinary.com/v1_1/${name}/image/upload`;
+                const response = await fetch(uploadUrl, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => ({}));
+                    throw new Error(errData.error?.message || `HTTP ${response.status}`);
+                }
+
+                Toast.success("✅ Cloudinary hoạt động tốt! Upload thành công.");
+            } catch (error) {
+                Toast.error("Lỗi Cloudinary: " + error.message);
+            } finally {
+                Loading.hide();
+            }
         });
 
         // --- Display Settings (Immediate save) ---
