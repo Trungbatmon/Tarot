@@ -59,7 +59,33 @@ Deck Name: {deckName}
 Target Cards to find: {cardNames}
 
 Raw Text Block:
-{rawText}`
+{rawText}`,
+
+        TRANSLATE_TEXT: `You are an expert Tarot translator. Translate the following text into {targetLanguage}. 
+Maintain the esoteric and spiritual tone appropriately. 
+ONLY RETURN THE TRANSLATED TEXT, NO EXPLANATIONS, NO MARKDOWN.
+Text to translate:
+{text}`,
+
+        CUSTOM_CARD_DETAILS: `You are a professional Tarot reader and writer. Provide details for the requested card.
+Strictly adhere to this custom user instruction: "{userInstruction}"
+
+If Reference Text is provided, extract the meaning from it and summarize it. If no Reference Text is provided, use your general knowledge of the card.
+Return a valid JSON object ONLY, NO markdown blocks, NO code blocks, NO extra text.
+Format required:
+{
+  "nameVi": "Vietnamese translated card name",
+  "nameEn": "English card name",
+  "keywords": ["keyword1", "keyword2", "keyword3"],
+  "keywordsEn": ["keywordEn1", "keywordEn2", "keywordEn3"],
+  "details": "Summary of upright meaning in Vietnamese",
+  "detailsEn": "Summary of upright meaning in English",
+  "reversedDetails": "Summary of reversed meaning in Vietnamese",
+  "reversedDetailsEn": "Summary of reversed meaning in English"
+}
+Deck Name: {deckName}
+Card Name: {cardName}
+Reference Text: {referenceText}`
     },
 
     isGeminiAvailable() {
@@ -269,21 +295,31 @@ Raw Text Block:
     },
 
     /**
-     * Auto generate card details (nameVi, keywords, meanings) using Gemini
+     * Auto generate card details using Gemini
      * @param {string} deckName 
      * @param {string} cardName 
      * @param {string} referenceText Optional raw text from companion book
-     * @returns {Promise<Object>} {nameVi, keywords, details, reversedDetails}
+     * @param {string} userInstruction Optional custom instruction
+     * @returns {Promise<Object>} 
      */
-    async generateCardDetails(deckName, cardName, referenceText = '') {
+    async generateCardDetails(deckName, cardName, referenceText = '', userInstruction = '') {
         if (!this.isAIAvailable()) {
             throw new Error("Vui lòng cấu hình API Key để tự động dịch và điền thông tin.");
         }
 
-        const prompt = this.PROMPTS.GENERATE_CARD_DETAILS
-            .replace('{deckName}', deckName)
-            .replace('{cardName}', cardName)
-            .replace('{referenceText}', referenceText ? referenceText.substring(0, 3000) : 'None'); // limit length to avoid massive tokens
+        let prompt = '';
+        if (userInstruction && userInstruction.trim()) {
+            prompt = this.PROMPTS.CUSTOM_CARD_DETAILS
+                .replace('{deckName}', deckName)
+                .replace('{cardName}', cardName)
+                .replace('{userInstruction}', userInstruction)
+                .replace('{referenceText}', referenceText ? referenceText.substring(0, 3000) : 'None');
+        } else {
+            prompt = this.PROMPTS.GENERATE_CARD_DETAILS
+                .replace('{deckName}', deckName)
+                .replace('{cardName}', cardName)
+                .replace('{referenceText}', referenceText ? referenceText.substring(0, 3000) : 'None');
+        }
 
         try {
             const rawResponse = await this._callAI(prompt, 'gemini-2.0-flash');
@@ -298,6 +334,34 @@ Raw Text Block:
             return parsed;
         } catch (error) {
             console.error("AI Generate Card Details Error:", error);
+            throw new Error(`Lỗi điền tự động AI: ${error.message}`);
+        }
+    },
+
+    /**
+     * Translate text
+     * @param {string} text 
+     * @param {string} targetLanguage e.g., 'Vietnamese', 'English'
+     * @returns {Promise<string>}
+     */
+    async translateText(text, targetLanguage) {
+        if (!this.isAIAvailable()) {
+            throw new Error("Vui lòng cấu hình API Key để sử dụng tính năng dịch.");
+        }
+        if (!text || !text.trim()) return '';
+
+        const prompt = this.PROMPTS.TRANSLATE_TEXT
+            .replace('{targetLanguage}', targetLanguage)
+            .replace('{text}', text.substring(0, 5000));
+
+        try {
+            const rawResponse = await this._callAI(prompt, 'gemini-flash'); // fast model is fine
+            return rawResponse.trim();
+        } catch (error) {
+            console.error("AI Translate Error:", error);
+            throw new Error(`Lỗi dịch AI: ${error.message}`);
+        }
+    },
             throw new Error(`Lỗi Dịch AI: ${error.message}`);
         }
     },

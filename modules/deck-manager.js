@@ -706,7 +706,7 @@ const DeckManager = {
             const backStyle = backImgUrl ? `background-image: url('${backImgUrl}'); background-size: cover;` : '';
 
             // Render Cards as vertical list with status indicators
-            let cardsHtml = '<div class="card-list-vertical">';
+            let cardsHtml = '<div class="card-list-vertical mb-3xl">';
             cards.forEach(card => {
                 const hasImage = !!(card.image || card.imageUrl);
                 const hasKeywords = card.keywords && card.keywords.length > 0;
@@ -716,9 +716,15 @@ const DeckManager = {
                 const hasNameVi = !!(card.nameVi && card.nameVi.trim());
                 
                 const allDone = hasImage && hasKeywords && hasDetails;
+                const isSelected = this._state.selectedCards && this._state.selectedCards.has(card.id);
                 
                 cardsHtml += `
-                    <div class="card-list-item ${allDone ? 'card-complete' : ''}" data-cardid="${card.id}">
+                    <div class="card-list-item ${allDone ? 'card-complete' : ''} ${isSelected ? 'selected text-gold' : ''}" data-cardid="${card.id}" style="${isSelected ? 'background: rgba(212, 165, 116, 0.1); border-color: var(--gold-primary);' : ''}">
+                        ${this._state.isSelectMode ? `
+                        <div class="card-select-checkbox flex items-center justify-center mr-sm">
+                            <div style="width: 20px; height: 20px; border: 2px solid ${isSelected ? 'var(--gold-primary)' : 'var(--text-muted)'}; border-radius: 4px; background: ${isSelected ? 'var(--gold-primary)' : 'transparent'};"></div>
+                        </div>
+                        ` : ''}
                         <div class="card-list-number">${card.number || '—'}</div>
                         <div class="card-list-info">
                             <div class="card-list-name">${this._sanitize(card.name)}${hasNameVi ? ` <span class="text-muted text-xs">(${this._sanitize(card.nameVi)})</span>` : ''}</div>
@@ -730,7 +736,7 @@ const DeckManager = {
                                 <span class="status-dot ${hasCompanion ? 'dot-ok' : 'dot-miss'}" title="Companion">📚</span>
                             </div>
                         </div>
-                        <div class="card-list-arrow">›</div>
+                        ${!this._state.isSelectMode ? '<div class="card-list-arrow">›</div>' : ''}
                     </div>
                 `;
             });
@@ -797,16 +803,30 @@ const DeckManager = {
                     </div>
                 </div>
 
-                <div class="flex gap-xs mb-md" id="viewModeSwitcher">
-                    <button class="btn btn-sm ${(this._state.cardViewMode || 'list') === 'list' ? 'btn-primary' : 'btn-secondary'}" data-mode="list" title="Danh sách">☰</button>
-                    <button class="btn btn-sm ${this._state.cardViewMode === 'grid-sm' ? 'btn-primary' : 'btn-secondary'}" data-mode="grid-sm" title="Ảnh nhỏ">▦</button>
-                    <button class="btn btn-sm ${this._state.cardViewMode === 'grid-lg' ? 'btn-primary' : 'btn-secondary'}" data-mode="grid-lg" title="Ảnh lớn">▣</button>
+                <div class="flex gap-xs mb-md justify-between items-center" id="viewModeSwitcher">
+                    <div class="flex gap-xs">
+                        <button class="btn btn-sm ${(this._state.cardViewMode || 'list') === 'list' ? 'btn-primary' : 'btn-secondary'}" data-mode="list" title="Danh sách">☰</button>
+                        <button class="btn btn-sm ${this._state.cardViewMode === 'grid-sm' ? 'btn-primary' : 'btn-secondary'}" data-mode="grid-sm" title="Ảnh nhỏ">▦</button>
+                        <button class="btn btn-sm ${this._state.cardViewMode === 'grid-lg' ? 'btn-primary' : 'btn-secondary'}" data-mode="grid-lg" title="Ảnh lớn">▣</button>
+                    </div>
+                    <button class="btn btn-sm ${this._state.isSelectMode ? 'btn-primary' : 'btn-secondary'}" id="btnToggleSelectMode">
+                        <span class="icon">☑</span> ${this._state.isSelectMode ? 'Hủy chọn' : 'Chọn nhiều'}
+                    </button>
                 </div>
 
                 ${cardsHtml}
 
                 ${this._renderCardGrid(cards, 'grid-sm')}
                 ${this._renderCardGrid(cards, 'grid-lg')}
+
+                ${this._state.isSelectMode && this._state.selectedCards && this._state.selectedCards.size > 0 ? `
+                <div class="fixed bottom-0 left-0 right-0 p-md flex gap-sm items-center justify-between z-50 card" style="background: var(--bg-secondary); border-top: 1px solid var(--border-color); border-radius: 0; margin: 0; box-shadow: 0 -4px 12px rgba(0,0,0,0.5);">
+                    <div class="text-gold font-bold">Đã chọn: ${this._state.selectedCards.size}</div>
+                    <div class="flex gap-sm">
+                        <button class="btn btn-sm btn-danger" id="btnBatchDeleteDetails">Xóa chi tiết</button>
+                    </div>
+                </div>
+                ` : ''}
             `;
 
             this._container.innerHTML = html;
@@ -996,28 +1016,52 @@ const DeckManager = {
 
             // --- Bulk Auto Context via AI ---
             document.getElementById('btnBulkAutoContext')?.addEventListener('click', async () => {
-                const missingCards = cards.filter(c => !c.details && !c.reversedDetails);
-                if (missingCards.length === 0) {
-                    return Toast.info("Tất cả lá bài đã có đủ nội dung giải nghĩa!");
+                let targetCards = cards.filter(c => !c.details && !c.reversedDetails);
+                if (this._state.isSelectMode && this._state.selectedCards && this._state.selectedCards.size > 0) {
+                    targetCards = cards.filter(c => this._state.selectedCards.has(c.id));
                 }
                 
-                const confirmed = confirm(`Sẽ tự động nhờ AI phân tích lại nội dung cho ${missingCards.length} lá bài.\nQuá trình này có thể mất vài phút. Bạn có muốn tiếp tục không?`);
-                if (!confirmed) return;
+                if (targetCards.length === 0) {
+                    return Toast.info("Không có lá bài nào để xử lý!");
+                }
+                
+                const customPrompt = prompt(`Sẽ nhờ AI phân tích lại nội dung cho ${targetCards.length} lá bài.\nCó ghi chú gì đặc biệt cho AI không? (Ví dụ: "Viết ngắn gọn", "Phong cách thơ")\nĐể trống nếu không cần thiết:`);
+                if (customPrompt === null) return; // User cancelled
 
                 let successCount = 0;
                 let failCount = 0;
                 
-                for (let i = 0; i < missingCards.length; i++) {
-                    const card = missingCards[i];
-                    Loading.show(`AI đang phân tích (${i + 1}/${missingCards.length}): ${card.name}`);
+                for (let i = 0; i < targetCards.length; i++) {
+                    const card = targetCards[i];
+                    Loading.show(`AI đang phân tích (${i + 1}/${targetCards.length}): ${card.name}`);
                     
                     try {
-                        const result = await AIService.generateCardDetails(deck.name, card.name, card.companionText || '');
+                        const result = await AIService.generateCardDetails(deck.name, card.name, card.companionText || '', customPrompt.trim());
                         
                         card.nameVi = result.nameVi || card.nameVi;
+                        card.nameEn = result.nameEn || card.nameEn;
                         card.keywords = result.keywords && result.keywords.length ? result.keywords : card.keywords;
+                        card.keywordsEn = result.keywordsEn && result.keywordsEn.length ? result.keywordsEn : card.keywordsEn;
                         card.details = result.details || card.details;
+                        card.detailsEn = result.detailsEn || card.detailsEn;
                         card.reversedDetails = result.reversedDetails || card.reversedDetails;
+                        card.reversedDetailsEn = result.reversedDetailsEn || card.reversedDetailsEn;
+                        
+                        await Store.set(STORES.CARDS, card);
+                        await Store.addToSyncQueue('update', STORES.CARDS, card.id, card);
+                        successCount++;
+                    } catch (err) {
+                        console.error(`Lỗi giải nghĩa ${card.name}:`, err);
+                        failCount++;
+                    }
+                }
+                
+                Loading.hide();
+                Toast.success(`Hoàn tất AI! ✅ ${successCount} thành công, ❌ ${failCount} lỗi.`);
+                this._state.isSelectMode = false;
+                if (this._state.selectedCards) this._state.selectedCards.clear();
+                this._renderDeckDetail();
+            });
                         
                         await Store.set(STORES.CARDS, card);
                         await Store.addToSyncQueue('update', STORES.CARDS, card.id, card);
@@ -1094,12 +1138,92 @@ const DeckManager = {
                 }
             });
 
+            // --- Multi Select Mode Toggle ---
+            document.getElementById('btnToggleSelectMode')?.addEventListener('click', () => {
+                this._state.isSelectMode = !this._state.isSelectMode;
+                if (!this._state.isSelectMode) {
+                    this._state.selectedCards = new Set();
+                } else if (!this._state.selectedCards) {
+                    this._state.selectedCards = new Set();
+                }
+                this._renderDeckDetail();
+            });
+
+            // --- Batch Delete ---
+            document.getElementById('btnBatchDeleteDetails')?.addEventListener('click', async () => {
+                if (!this._state.selectedCards || this._state.selectedCards.size === 0) return;
+                
+                const opts = `
+                    <div class="flex flex-col gap-sm p-sm">
+                        <label class="flex items-center gap-md cursor-pointer p-sm hover:bg-white/5 rounded">
+                            <input type="checkbox" id="chkDelImg" class="form-checkbox" style="width:20px;height:20px;"> 
+                            <span class="text-lg">Xóa hình ảnh</span>
+                        </label>
+                        <label class="flex items-center gap-md cursor-pointer p-sm hover:bg-white/5 rounded">
+                            <input type="checkbox" id="chkDelDetails" class="form-checkbox" style="width:20px;height:20px;" checked> 
+                            <span class="text-lg">Xóa nội dung Ý nghĩa & Từ khóa</span>
+                        </label>
+                        <label class="flex items-center gap-md cursor-pointer p-sm hover:bg-white/5 rounded">
+                            <input type="checkbox" id="chkDelCompanion" class="form-checkbox" style="width:20px;height:20px;"> 
+                            <span class="text-lg">Xóa Companion Text</span>
+                        </label>
+                    </div>
+                `;
+                
+                const confirmed = await Modal.confirm("Tùy chọn Xóa Hàng Loạt", opts);
+                if (!confirmed) return;
+                
+                const delImg = document.getElementById('chkDelImg')?.checked;
+                const delDetails = document.getElementById('chkDelDetails')?.checked;
+                const delComp = document.getElementById('chkDelCompanion')?.checked;
+                
+                Loading.show("Đang xóa...");
+                for (const cardId of this._state.selectedCards) {
+                    const c = this._state.cards.find(x => x.id === cardId);
+                    if (!c) continue;
+                    
+                    if (delImg) {
+                        c.image = null;
+                        c.imageUrl = null;
+                        c.imageDownloaded = false;
+                    }
+                    if (delDetails) {
+                        c.details = '';
+                        c.reversedDetails = '';
+                        c.detailsEn = '';
+                        c.reversedDetailsEn = '';
+                        c.keywords = [];
+                        c.keywordsEn = [];
+                    }
+                    if (delComp) {
+                        c.companionText = '';
+                        c.companionTextEn = '';
+                    }
+                    await Store.set(STORES.CARDS, c);
+                }
+                Loading.hide();
+                Toast.success("Đã xóa dữ liệu thành công.");
+                this._state.selectedCards.clear();
+                this._state.isSelectMode = false;
+                this._renderDeckDetail();
+            });
+
             // Card Click Events to open Editor (all view modes)
             document.querySelectorAll('.card-list-item[data-cardid], .card-grid-item[data-cardid]').forEach(el => {
                 el.addEventListener('click', (e) => {
-                    this._state.currentView = 'edit-card';
-                    this._state.editingCardId = e.currentTarget.dataset.cardid;
-                    this._renderMainView();
+                    const cardId = e.currentTarget.dataset.cardid;
+                    if (this._state.isSelectMode) {
+                        if (this._state.selectedCards.has(cardId)) {
+                            this._state.selectedCards.delete(cardId);
+                        } else {
+                            this._state.selectedCards.add(cardId);
+                        }
+                        this._renderDeckDetail(); // Re-render to update checkbox visuals
+                    } else {
+                        this._state.currentView = 'edit-card';
+                        this._state.editingCardId = cardId;
+                        this._renderMainView();
+                    }
                 });
             });
 
@@ -1164,44 +1288,97 @@ const DeckManager = {
                 ${card.image ? '<button class="btn btn-danger btn-sm mt-md" id="btnRemoveImage">🗑️ Xóa ảnh</button>' : ''}
             </div>
 
-            <div class="card mb-xl">
-                <h3 class="section-subtitle">Thông tin lá bài</h3>
-                <div class="form-group">
-                    <label class="form-label" for="cardNameVi">Tên tiếng Việt</label>
-                    <input type="text" id="cardNameVi" class="form-input" value="${this._sanitize(card.nameVi || '')}" placeholder="VD: Kẻ Khờ">
+            <div class="card mb-xl p-md">
+                <style>
+                    .lang-tab { border-radius: 0; background: transparent; padding-bottom: 4px; opacity: 0.6; }
+                    .lang-tab.active { border-bottom: 2px solid var(--gold-primary); color: var(--gold-primary); opacity: 1; }
+                </style>
+                <div class="flex gap-md mb-md border-b" style="border-color: rgba(255,255,255,0.1);">
+                    <button class="btn btn-sm lang-tab active" id="tabLangVi">🇻🇳 Tiếng Việt</button>
+                    <button class="btn btn-sm lang-tab" id="tabLangEn">🇬🇧 Tiếng Anh</button>
                 </div>
                 
-                <div class="form-group mb-0">
-                    <label class="form-label" for="cardKeywords">Từ khóa (Keywords)</label>
-                    <input type="text" id="cardKeywords" class="form-input" value="${this._sanitize((card.keywords || []).join(', '))}" placeholder="Phân cách bằng dấu phẩy...">
+                <div id="containerLangVi">
+                    <h3 class="section-subtitle">Thông tin lá bài (VI)</h3>
+                    <div class="form-group">
+                        <label class="form-label" for="cardNameVi">Tên tiếng Việt</label>
+                        <input type="text" id="cardNameVi" class="form-input" value="${this._sanitize(card.nameVi || '')}" placeholder="VD: Kẻ Khờ">
+                    </div>
+                    <div class="form-group mb-lg">
+                        <label class="form-label" for="cardKeywords">Từ khóa (Keywords)</label>
+                        <input type="text" id="cardKeywords" class="form-input" value="${this._sanitize((card.keywords || []).join(', '))}" placeholder="Phân cách bằng dấu phẩy...">
+                    </div>
+                    
+                    <h3 class="section-subtitle">Ý nghĩa (Interpretation)</h3>
+                    <div class="form-group">
+                        <label class="form-label" for="cardDetails">Giải nghĩa bài xuôi (Upright)</label>
+                        <textarea id="cardDetails" class="form-textarea" style="min-height:120px;" placeholder="Gõ ý nghĩa bài xuôi...">${this._sanitize(card.details || '')}</textarea>
+                    </div>
+                    <div class="form-group mb-0">
+                        <label class="form-label" for="cardRevDetails">Giải nghĩa bài ngược (Reversed)</label>
+                        <textarea id="cardRevDetails" class="form-textarea" placeholder="Gõ ý nghĩa bài ngược...">${this._sanitize(card.reversedDetails || '')}</textarea>
+                    </div>
+                </div>
+                
+                <div id="containerLangEn" style="display: none;">
+                    <h3 class="section-subtitle">Card Info (EN)</h3>
+                    <div class="form-group">
+                        <label class="form-label" for="cardNameEn">English Name</label>
+                        <input type="text" id="cardNameEn" class="form-input" value="${this._sanitize(card.nameEn || '')}" placeholder="e.g: The Fool">
+                    </div>
+                    <div class="form-group mb-lg">
+                        <label class="form-label" for="cardKeywordsEn">Keywords</label>
+                        <input type="text" id="cardKeywordsEn" class="form-input" value="${this._sanitize((card.keywordsEn || []).join(', '))}" placeholder="Comma separated...">
+                    </div>
+                    
+                    <h3 class="section-subtitle flex justify-between items-center">
+                        Interpretation
+                        <button class="btn btn-xs btn-secondary" id="btnTranslateDetailsToEn">Dịch trống ➔ EN</button>
+                    </h3>
+                    <div class="form-group">
+                        <label class="form-label" for="cardDetailsEn">Upright</label>
+                        <textarea id="cardDetailsEn" class="form-textarea" style="min-height:120px;">${this._sanitize(card.detailsEn || '')}</textarea>
+                    </div>
+                    <div class="form-group mb-0">
+                        <label class="form-label" for="cardRevDetailsEn">Reversed</label>
+                        <textarea id="cardRevDetailsEn" class="form-textarea">${this._sanitize(card.reversedDetailsEn || '')}</textarea>
+                    </div>
                 </div>
             </div>
 
-            <div class="card mb-xl">
-                <h3 class="section-subtitle">Ý nghĩa (Interpretation)</h3>
-                
-                <div class="form-group">
-                    <label class="form-label" for="cardDetails">Giải nghĩa bài xuôi (Upright)</label>
-                    <textarea id="cardDetails" class="form-textarea" style="min-height:120px;" placeholder="Gõ ý nghĩa bài xuôi...">${this._sanitize(card.details || '')}</textarea>
+            ${card.companionText || card.companionTextEn ? `
+            <div class="card mb-xl p-md">
+                <div class="flex gap-md justify-between items-center mb-sm">
+                    <h3 class="section-subtitle mb-0">📚 Nội dung Companion Book</h3>
+                    <div class="flex gap-sm">
+                        <button class="btn btn-xs btn-secondary" id="btnTranslateCompToVi">Dịch ➔ VI</button>
+                        <button class="btn btn-xs btn-secondary" id="btnTranslateCompToEn">Dịch ➔ EN</button>
+                    </div>
                 </div>
                 
-                <div class="form-group mb-0">
-                    <label class="form-label" for="cardRevDetails">Giải nghĩa bài ngược (Reversed)</label>
-                    <textarea id="cardRevDetails" class="form-textarea" placeholder="Gõ ý nghĩa bài ngược...">${this._sanitize(card.reversedDetails || '')}</textarea>
+                <div id="compLangVi" style="display: ${card.companionText ? 'block' : 'none'};">
+                    <div class="text-xs text-gold mb-xs">Tiếng Việt:</div>
+                    <textarea id="txtCompanionVi" class="form-textarea mb-md" style="min-height: 150px;">${this._sanitize(card.companionText || '')}</textarea>
                 </div>
-            </div>
-
-            ${card.companionText ? `
-            <div class="card mb-xl">
-                <h3 class="section-subtitle">📚 Nội dung Companion Book</h3>
-                <p class="text-sm text-muted" style="white-space: pre-wrap; max-height: 200px; overflow-y: auto;">${this._sanitize(card.companionText)}</p>
+                
+                <div id="compLangEn" style="display: ${card.companionTextEn ? 'block' : 'none'};">
+                    <div class="text-xs text-gold mb-xs">English:</div>
+                    <textarea id="txtCompanionEn" class="form-textarea" style="min-height: 150px;">${this._sanitize(card.companionTextEn || '')}</textarea>
+                </div>
             </div>
             ` : ''}
 
-            <button id="btnSaveCard" class="btn btn-success w-full mb-md">💾 Lưu Chi Tiết Lá Bài</button>
-            <button id="btnAiAutoContext" class="btn btn-secondary w-full mb-3xl">
-                <span class="icon text-gold">✨</span> Nhờ AI điền thông tin tự động
-            </button>
+            <div class="card mb-xl p-md">
+                <div class="form-group mb-xs">
+                    <label class="form-label text-gold">Nhờ AI cập nhật thông tin</label>
+                    <textarea id="cardAiInstruction" class="form-input mb-sm" style="min-height:40px;" placeholder="Chỉ dẫn tùy chỉnh (VD: Viết ngắn lại, phong cách thơ...)"></textarea>
+                </div>
+                <button id="btnAiAutoContext" class="btn btn-secondary w-full">
+                    <span class="icon text-gold">✨</span> Gọi AI tự điền toàn bộ
+                </button>
+            </div>
+
+            <button id="btnSaveCard" class="btn btn-success w-full mb-3xl">💾 Lưu Chi Tiết Lá Bài</button>
         `;
 
         this._container.innerHTML = html;
@@ -1290,14 +1467,81 @@ const DeckManager = {
             Toast.info("Tìm thấy hình phù hợp? Copy ảnh rồi quay lại bấm 📋 Dán ảnh!");
         });
 
+        // --- Language Tabs ---
+        const tabVi = document.getElementById('tabLangVi');
+        const tabEn = document.getElementById('tabLangEn');
+        const contVi = document.getElementById('containerLangVi');
+        const contEn = document.getElementById('containerLangEn');
+        
+        tabVi?.addEventListener('click', () => {
+            tabVi.classList.add('active'); tabEn.classList.remove('active');
+            contVi.style.display = 'block'; contEn.style.display = 'none';
+        });
+        
+        tabEn?.addEventListener('click', () => {
+            tabEn.classList.add('active'); tabVi.classList.remove('active');
+            contEn.style.display = 'block'; contVi.style.display = 'none';
+        });
+
+        // --- Translate Buttons ---
+        document.getElementById('btnTranslateDetailsToEn')?.addEventListener('click', async () => {
+            const txt = document.getElementById('cardDetails').value.trim();
+            const txtRev = document.getElementById('cardRevDetails').value.trim();
+            if (!txt && !txtRev) return Toast.info("Không có nội dung tiếng Việt để dịch");
+            try {
+                Loading.show("Đang dịch sang Tiếng Anh...");
+                if (txt && !document.getElementById('cardDetailsEn').value.trim()) {
+                    document.getElementById('cardDetailsEn').value = await AIService.translateText(txt, 'English');
+                }
+                if (txtRev && !document.getElementById('cardRevDetailsEn').value.trim()) {
+                    document.getElementById('cardRevDetailsEn').value = await AIService.translateText(txtRev, 'English');
+                }
+                Toast.success("Đã hoàn tất dịch");
+            } catch(e) { Toast.error(e.message); } finally { Loading.hide(); }
+        });
+
+        document.getElementById('btnTranslateCompToVi')?.addEventListener('click', async () => {
+             const txt = document.getElementById('txtCompanionEn')?.value.trim() || card.companionTextEn || card.companionText;
+             if (!txt) return Toast.info("Không có dữ liệu gốc để dịch");
+             try {
+                Loading.show("Đang dịch sang TV...");
+                document.getElementById('txtCompanionVi').value = await AIService.translateText(txt, 'Vietnamese');
+                Toast.success("Đã dịch xong");
+             } catch(e) { Toast.error(e.message); } finally { Loading.hide(); }
+        });
+
+        document.getElementById('btnTranslateCompToEn')?.addEventListener('click', async () => {
+             const txt = document.getElementById('txtCompanionVi')?.value.trim() || card.companionText;
+             if (!txt) return Toast.info("Không có dữ liệu gốc để dịch");
+             try {
+                Loading.show("Đang dịch sang TA...");
+                document.getElementById('txtCompanionEn').value = await AIService.translateText(txt, 'English');
+                Toast.success("Đã dịch xong");
+             } catch(e) { Toast.error(e.message); } finally { Loading.hide(); }
+        });
+
         // Save
         document.getElementById('btnSaveCard')?.addEventListener('click', async () => {
             try {
                 Loading.show("Đang lưu...");
                 card.nameVi = document.getElementById('cardNameVi').value.trim();
+                if(document.getElementById('cardNameEn')) card.nameEn = document.getElementById('cardNameEn').value.trim();
+                
                 card.keywords = document.getElementById('cardKeywords').value.split(',').map(s => s.trim()).filter(Boolean);
+                if(document.getElementById('cardKeywordsEn')) card.keywordsEn = document.getElementById('cardKeywordsEn').value.split(',').map(s => s.trim()).filter(Boolean);
+                
                 card.details = document.getElementById('cardDetails').value.trim();
+                if(document.getElementById('cardDetailsEn')) card.detailsEn = document.getElementById('cardDetailsEn').value.trim();
+                
                 card.reversedDetails = document.getElementById('cardRevDetails').value.trim();
+                if(document.getElementById('cardRevDetailsEn')) card.reversedDetailsEn = document.getElementById('cardRevDetailsEn').value.trim();
+
+                if (document.getElementById('txtCompanionVi')) {
+                    card.companionText = document.getElementById('txtCompanionVi').value.trim();
+                }
+                if (document.getElementById('txtCompanionEn')) {
+                    card.companionTextEn = document.getElementById('txtCompanionEn').value.trim();
+                }
 
                 await Store.set(STORES.CARDS, card);
                 await Store.addToSyncQueue('update', STORES.CARDS, card.id, card);
@@ -1317,17 +1561,22 @@ const DeckManager = {
         document.getElementById('btnAiAutoContext')?.addEventListener('click', async () => {
              const deck = this._state.decks.find(d => d.id === card.deckId);
              const deckName = deck ? deck.name : 'Unknown Deck';
+             const customPrompt = document.getElementById('cardAiInstruction')?.value.trim();
 
              try {
                 Loading.show("AI đang đọc Tarot...");
                 
-                const result = await AIService.generateCardDetails(deckName, card.name, card.companionText || '');
+                const result = await AIService.generateCardDetails(deckName, card.name, card.companionText || '', customPrompt);
                 
-                // Update DOM inputs
-                document.getElementById('cardNameVi').value = result.nameVi || '';
-                document.getElementById('cardKeywords').value = (result.keywords || []).join(', ');
-                document.getElementById('cardDetails').value = result.details || '';
-                document.getElementById('cardRevDetails').value = result.reversedDetails || '';
+                // Update DOM inputs safely
+                if(result.nameVi) document.getElementById('cardNameVi').value = result.nameVi;
+                if(result.nameEn && document.getElementById('cardNameEn')) document.getElementById('cardNameEn').value = result.nameEn;
+                if(result.keywords) document.getElementById('cardKeywords').value = result.keywords.join(', ');
+                if(result.keywordsEn && document.getElementById('cardKeywordsEn')) document.getElementById('cardKeywordsEn').value = result.keywordsEn.join(', ');
+                if(result.details) document.getElementById('cardDetails').value = result.details;
+                if(result.detailsEn && document.getElementById('cardDetailsEn')) document.getElementById('cardDetailsEn').value = result.detailsEn;
+                if(result.reversedDetails) document.getElementById('cardRevDetails').value = result.reversedDetails;
+                if(result.reversedDetailsEn && document.getElementById('cardRevDetailsEn')) document.getElementById('cardRevDetailsEn').value = result.reversedDetailsEn;
 
                 Toast.success("Đã điền tự động! Đừng quên bấm 'Lưu'.");
              } catch(err) {
@@ -1408,19 +1657,24 @@ const DeckManager = {
         const isLarge = mode === 'grid-lg';
         const cssClass = isLarge ? 'card-grid-lg' : 'card-grid-sm';
         
-        let html = `<div class="${cssClass}">`;
+        let html = `<div class="${cssClass} mb-3xl">`;
         cards.forEach(card => {
             let imgUrl = null;
             if (card.image && (card.image instanceof Blob || card.image instanceof File)) {
                 try { imgUrl = URL.createObjectURL(card.image); } catch(e){}
             }
             
+            const isSelected = this._state.selectedCards && this._state.selectedCards.has(card.id);
+            
             html += `
-                <div class="card-grid-item" data-cardid="${card.id}">
+                <div class="card-grid-item" data-cardid="${card.id}" style="position: relative; ${isSelected ? 'box-shadow: 0 0 0 3px var(--gold-primary);' : ''}">
+                    ${this._state.isSelectMode ? `
+                    <div style="position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; background: ${isSelected ? 'var(--gold-primary)' : 'rgba(0,0,0,0.5)'}; border: 2px solid ${isSelected ? 'var(--gold-primary)' : 'white'}; border-radius: 4px; z-index: 2; pointer-events: none;"></div>
+                    ` : ''}
                     <div class="card-grid-thumb" ${imgUrl ? `style="background-image: url('${imgUrl}');"` : ''}>
                         ${!imgUrl ? `<span class="card-grid-no-img">${card.number || '?'}</span>` : ''}
                     </div>
-                    <div class="card-grid-label">${this._sanitize(card.name)}</div>
+                    <div class="card-grid-label" style="${isSelected ? 'color: var(--gold-primary);' : ''}">${this._sanitize(card.name)}</div>
                 </div>
             `;
         });

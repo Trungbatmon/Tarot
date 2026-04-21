@@ -255,11 +255,16 @@ const CardReader = {
             `;
         });
 
-        // Determine Layout based on count
+        // Determine Layout based on count and spread
         let gridClass = 'grid-auto';
-        if (drawnCards.length === 1) gridClass = 'flex justify-center';
-        else if (drawnCards.length === 2) gridClass = 'grid-2';
-        else if (drawnCards.length === 3) gridClass = 'grid-3';
+        if (selectedSpread?.id === 'preset_celtic') {
+            gridClass = 'spread-layout-celtic';
+        } else if (selectedSpread?.id === 'preset_3_time' || selectedSpread?.id === 'preset_3_love' || drawnCards.length === 3) {
+            gridClass = 'spread-layout-3';
+        } else {
+            if (drawnCards.length === 1) gridClass = 'flex justify-center';
+            else if (drawnCards.length === 2) gridClass = 'grid-2';
+        }
 
         const html = `
             <div class="flex items-center justify-between mb-lg">
