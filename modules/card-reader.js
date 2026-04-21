@@ -228,22 +228,22 @@ const CardReader = {
             
             // CSS states
             const flippedClass = item.flipped || disableFlipCss ? 'flipped' : '';
-            const reversedTransform = item.reversed ? 'rotateZ(180deg)' : '';
+            const reversedClass = item.reversed ? 'reversed' : '';
 
             // If flip animation is disabled globally, just show the card without the 3D wrapper physics if needed
             // But preserving structure is better, we just toggle the classes immediately
             
             cardsHtml += `
-                <div class="tarot-card-wrapper" style="margin: 0 auto; width: 100%; max-width: 260px; min-width: 120px; display: flex; flex-direction: column; align-items: center;">
+                <div class="tarot-card-wrapper" style="margin: 0 auto; width: 100%; max-width: 140px; min-width: 90px; display: flex; flex-direction: column; align-items: center;">
                     <div class="text-gold text-center mb-sm font-bold text-sm tracking-wider" style="opacity: 0.8; width: 100%;">
                         ${this._sanitize(item.position.name)}
                     </div>
                     <div class="tarot-card-scene" data-index="${index}" style="width: 100%;">
-                        <div class="tarot-card ${animClass} ${flippedClass}">
+                        <div class="tarot-card ${animClass} ${flippedClass} ${reversedClass}">
                             <div class="tarot-card-face tarot-card-back" style="${backStyle}">
                                 ${!backImgUrl ? '<div class="card-back-placeholder" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-size:3em; background: rgba(0,0,0,0.5);">🔮</div>' : ''}
                             </div>
-                            <div class="tarot-card-face tarot-card-front" style="${frontStyle}; transform: rotateY(180deg) ${reversedTransform};">
+                            <div class="tarot-card-face tarot-card-front" style="${frontStyle}">
                                 ${!frontImgUrl ? `<div class="card-back-placeholder" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.5);"><span style="font-size: 2em">${c.number}</span></div>` : ''}
                                 <div class="tarot-card-name truncate ${item.reversed ? 'text-danger' : 'text-gold'}" style="padding:4px 8px; ${item.reversed ? 'transform: rotateZ(180deg); bottom: auto; top: 0; border-radius: 6px 6px 0 0; background: rgba(0,0,0,0.85);' : ''}">
                                     ${this._sanitize(c.nameVi || c.name)} ${item.reversed ? '(Ngược)' : ''}
@@ -259,6 +259,8 @@ const CardReader = {
         let gridClass = 'grid-auto';
         if (selectedSpread?.id === 'preset_celtic') {
             gridClass = 'spread-layout-celtic';
+        } else if (selectedSpread?.id === 'preset_5_cross') {
+            gridClass = 'spread-layout-cross5';
         } else if (selectedSpread?.id === 'preset_3_time' || selectedSpread?.id === 'preset_3_love' || drawnCards.length === 3) {
             gridClass = 'spread-layout-3';
         } else {
@@ -376,7 +378,16 @@ const CardReader = {
 
         const title = `${this._sanitize(c.nameVi || c.name)} ${item.reversed ? '<span class="text-danger">(Ngược)</span>' : ''}`;
 
+        const reversedTransform = item.reversed ? 'rotateZ(180deg)' : '';
+        const imgUrl = c.image ? URL.createObjectURL(c.image) : (c.imageUrl || null);
+        const imgHtml = imgUrl ? `
+            <div class="text-center mb-md">
+                <img src="${imgUrl}" style="max-height: 280px; max-width: 100%; border-radius: var(--radius-md); transform: ${reversedTransform}; border: 1px solid rgba(212,165,116,0.3);" />
+            </div>
+        ` : '';
+
         const bodyHtml = `
+            ${imgHtml}
             <div class="mb-md p-sm rounded bg-black bg-opacity-40 border border-gold" style="border-width: 1px;">
                 <p class="text-sm font-bold text-gold mb-xs">Vị trí: ${this._sanitize(item.position.name)}</p>
                 <p class="text-xs text-muted">${this._sanitize(item.position.description || '')}</p>

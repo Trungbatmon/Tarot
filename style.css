@@ -1450,14 +1450,7 @@ input, textarea, select {
     box-shadow: 0 0 12px rgba(212, 165, 116, 0.3);
 }
 
-.tarot-card-front {
-    z-index: 2;
-}
-
-.tarot-card-back {
-    transform: rotateY(180deg);
-}
-
+/* Removed contrary transforms that broke 3D flip */
 /* Placeholder when no image */
 .card-back-placeholder {
     display: flex;
@@ -1753,4 +1746,31 @@ input, textarea, select {
         align-items: center;
     }
     .spread-layout-celtic .tarot-card-wrapper:nth-child(2) { transform: none; margin-top: 0; }
+}
+
+.spread-layout-cross5 {
+    display: grid;
+    grid-template-areas: 
+        ".    col1 ."
+        "col2 col5 col3"
+        ".    col4 .";
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+}
+.spread-layout-cross5 .tarot-card-wrapper:nth-child(1) { grid-area: col1; }
+.spread-layout-cross5 .tarot-card-wrapper:nth-child(2) { grid-area: col2; }
+.spread-layout-cross5 .tarot-card-wrapper:nth-child(3) { grid-area: col3; }
+.spread-layout-cross5 .tarot-card-wrapper:nth-child(4) { grid-area: col4; }
+.spread-layout-cross5 .tarot-card-wrapper:nth-child(5) { grid-area: col5; }
+
+@media (max-width: 450px) {
+    .spread-layout-cross5 {
+        gap: 4px;
+    }
+    .spread-layout-cross5 .tarot-card-wrapper {
+        min-width: 0 !important;
+    }
 }

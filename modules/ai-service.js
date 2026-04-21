@@ -362,9 +362,7 @@ Reference Text: {referenceText}`
             throw new Error(`Lỗi dịch AI: ${error.message}`);
         }
     },
-            throw new Error(`Lỗi Dịch AI: ${error.message}`);
-        }
-    },
+
 
     /**
      * Parse bulk raw text to map descriptions to target cards

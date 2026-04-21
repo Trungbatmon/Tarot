@@ -66,6 +66,20 @@ const SpreadBuilder = {
                 { id: 9, name: 'Nguyện vọng / Nỗi sợ', description: 'Điều bạn đang mong muốn diễn ra nhất hoặc sợ hãi nhất.' },
                 { id: 10, name: 'Kết quả chung cuộc', description: 'Đích đến cuối cùng nếu mọi thứ tiếp diễn theo quỹ đạo này.' }
             ]
+        },
+        {
+            id: 'preset_5_cross',
+            name: 'Trải bài 5 lá về 1 vấn đề / Tình cảm',
+            description: 'Phân tích một khía cạnh thông qua 5 yếu tố: Suy nghĩ, Hành động, Cảm xúc, Nền tảng và Kết quả (Bố cục chữ thập).',
+            category: 'all',
+            isPreset: true,
+            positions: [
+                { id: 1, name: 'Suy nghĩ / Mong muốn', description: 'Suy nghĩ hoặc mong muốn hiện tại.' },
+                { id: 2, name: 'Hành động', description: 'Hành động đang diễn ra trong chuyện này.' },
+                { id: 3, name: 'Cảm xúc', description: 'Cảm xúc thực sự trong chuyện này.' },
+                { id: 4, name: 'Nền tảng', description: 'Nền tảng nền móng của sự việc.' },
+                { id: 5, name: 'Kết quả', description: 'Kết quả cuối cùng sẽ ra sao.' }
+            ]
         }
     ],
 
@@ -80,12 +94,12 @@ const SpreadBuilder = {
     async _loadData() {
         let stored = await Store.getAll(STORES.SPREADS);
         
-        // Populate defaults if completely empty
-        if (stored.length === 0) {
-            for (const preset of this.PRESETS) {
+        // Sync presets to ensure any new hardcoded ones are added if they don't exist
+        for (const preset of this.PRESETS) {
+            if (!stored.find(s => s.id === preset.id)) {
                 await Store.set(STORES.SPREADS, preset);
+                stored.push(preset);
             }
-            stored = this.PRESETS;
         }
 
         this._state.spreads = stored;

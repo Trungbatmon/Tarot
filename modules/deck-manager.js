@@ -1062,20 +1062,7 @@ const DeckManager = {
                 if (this._state.selectedCards) this._state.selectedCards.clear();
                 this._renderDeckDetail();
             });
-                        
-                        await Store.set(STORES.CARDS, card);
-                        await Store.addToSyncQueue('update', STORES.CARDS, card.id, card);
-                        successCount++;
-                    } catch (err) {
-                        console.error(`Lỗi giải nghĩa ${card.name}:`, err);
-                        failCount++;
-                    }
-                }
-                
-                Loading.hide();
-                Toast.success(`Hoàn tất AI! ✅ ${successCount} thành công, ❌ ${failCount} lỗi.`);
-                this._renderDeckDetail();
-            });
+
 
             // --- Batch Scan via Camera ---
             document.getElementById('btnBatchScan')?.addEventListener('click', () => {
